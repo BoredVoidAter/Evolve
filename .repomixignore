@@ -1,0 +1,76 @@
+# ========================================
+# Unity Generated Folders (Absolute Bloat)
+# ========================================
+/[Ll]ibrary/
+/[Tt]emp/
+/[Oo]bj/
+/[Bb]uild/
+/[Bb]uilds/
+/[Ll]ogs/
+/[Uu]ser[Ss]ettings/
+/[Mm]emoryCaptures/
+
+# ========================================
+# IDE & OS Files
+# ========================================
+.vs/
+.idea/
+.vscode/
+*.csproj
+*.sln
+.DS_Store
+
+# ========================================
+# Heavy Binary & Media Assets 
+# (Destroys context limits if included)
+# ========================================
+*.fbx
+*.obj
+*.blend
+*.png
+*.jpg
+*.jpeg
+*.tga
+*.tif
+*.psd
+*.exr
+*.mp3
+*.wav
+*.ogg
+*.mp4
+*.mov
+*.avi
+*.pdf
+
+# ========================================
+# Compiled Code
+# ========================================
+*.dll
+*.pdb
+*.exe
+*.apk
+*.aab
+
+# ========================================
+# Noisy Meta Files 
+# ========================================
+# Ignore all .meta files by default to save tokens...
+*.meta
+
+# ...BUT keep script and assembly metas! 
+# (This un-ignores them so the LLM can read the GUIDs for scene context)
+!*.cs.meta
+!*.asmdef.meta
+
+# ========================================
+# Pure Art/Data Text Files (Optional)
+# ========================================
+# Uncomment these if you are running out of tokens. 
+# They are technically text/YAML, but highly noisy.
+# *.mat
+# *.anim
+# *.controller
+# *.lighting
+#
+#
+Assets/TextMesh Pro/Examples & Extras/**/*

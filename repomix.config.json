@@ -1,0 +1,33 @@
+{
+  "output": {
+    "filePath": "repomix-unity.xml",
+    "style": "xml",
+    "removeComments": true,
+    "removeEmptyLines": true,
+    "showLineNumbers": true,
+    "copyToClipboard": true,
+    "topFilesLength": 20,
+  },
+  "include":[
+    "Assets/**/*.cs",
+    "Packages/manifest.json",
+    "ProjectSettings/ProjectVersion.txt",
+    "ProjectSettings/TagManager.asset",
+    "ProjectSettings/EditorBuildSettings.asset",
+    "ProjectSettings/InputManager.asset",
+    "GameDesignDocs/**/*"
+  ],
+  "ignore": {
+    "useGitignore": true,
+    "useDefaultPatterns": true,
+    "customPatterns":[
+      "Library/**",
+      "Temp/**",
+      "Logs/**",
+      "UserSettings/**",
+      "Builds/**",
+      "obj/**",
+      "bin/**"
+    ]
+  }
+}
