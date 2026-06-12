@@ -651,7 +651,7 @@
     "m_FunctionName": "GetMainLight",
     "m_FunctionSource": "",
     "m_FunctionSourceUsePragmas": true,
-    "m_FunctionBody": "#ifdef SHADERGRAPH_PREVIEW\n    Direction = float3(0.5, 0.5, 0);\n    Color = float3(1, 1, 1);\n    ShadowAtten = 1.0;\n#else\n    #if defined(UNIVERSAL_LIGHTING_INCLUDED)\n        // Get the main light from URP\n        Light mainLight = GetMainLight(TransformWorldToShadowCoord(WorldPos));\n        Direction = mainLight.direction;\n        Color = mainLight.color;\n        // Combine shadow map occlusion with distance falloff\n        ShadowAtten = mainLight.shadowAttenuation * mainLight.distanceAttenuation;\n    #else\n        Direction = float3(0.5, 0.5, 0);\n        Color = float3(1, 1, 1);\n        ShadowAtten = 1.0;\n    #endif\n#endif"
+    "m_FunctionBody": "#if defined(SHADERGRAPH_PREVIEW) || !defined(UNIVERSAL_LIGHTING_INCLUDED)\n    // Safe fallback for previews and non-lit passes (like Depth/Shadows)\n    Direction = float3(0.5, 0.5, 0);\n    Color = float3(1, 1, 1);\n    ShadowAtten = 1.0;\n#else\n    // Actually grab the light data\n    Light mainLight = GetMainLight(TransformWorldToShadowCoord(WorldPos));\n    Direction = mainLight.direction;\n    Color = mainLight.color;\n    \n    // URP calculates shadows. If you have no shadows cast, this defaults to 1.\n    ShadowAtten = mainLight.shadowAttenuation * mainLight.distanceAttenuation;\n#endif"
 }
 
 {
@@ -756,7 +756,7 @@
     "m_ObjectId": "1b8dbc2e562245aaa4170e4ca3831051",
     "m_Title": "Texture",
     "m_Position": {
-        "x": -827.0,
+        "x": -826.9999389648438,
         "y": -174.0
     }
 }
@@ -824,8 +824,8 @@
     "m_ObjectId": "222396658455473085b5a750433e69f5",
     "m_Title": "Lighting",
     "m_Position": {
-        "x": -1167.9998779296875,
-        "y": -737.9999389648438
+        "x": -1168.0,
+        "y": -738.0000610351563
     }
 }
 

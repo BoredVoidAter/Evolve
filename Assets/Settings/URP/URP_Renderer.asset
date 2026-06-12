@@ -1,25 +1,5 @@
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
---- !u!114 &-5055953563913815326
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: b00045f12942b46c698459096c89274e, type: 3}
-  m_Name: FullScreenPassRendererFeature
-  m_EditorClassIdentifier: Unity.RenderPipelines.Universal.Runtime::UnityEngine.Rendering.Universal.FullScreenPassRendererFeature
-  m_Active: 1
-  injectionPoint: 550
-  fetchColorBuffer: 1
-  requirements: 7
-  passMaterial: {fileID: 2100000, guid: da1f613e8d16661988a4439b2ada24b8, type: 2}
-  passIndex: 0
-  bindDepthStencilAttachment: 0
-  m_Version: 1
 --- !u!114 &11400000
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -46,8 +26,7 @@ MonoBehaviour:
     probeVolumeBlendStatesCS: {fileID: 7200000, guid: b9a23f869c4fd45f19c5ada54dd82176, type: 3}
   m_RendererFeatures:
   - {fileID: 9059840117076686955}
-  - {fileID: -5055953563913815326}
-  m_RendererFeatureMap: 6b7830dc9504bb7de2fa0b6e05a5d5b9
+  m_RendererFeatureMap: 6b7830dc9504bb7d
   m_UseNativeRenderPass: 1
   xrSystemData: {fileID: 0}
   postProcessData: {fileID: 11400000, guid: 41439944d30ece34e96484bdb6645b55, type: 2}
@@ -89,7 +68,8 @@ MonoBehaviour:
   m_Name: IDMapRendererFeature
   m_EditorClassIdentifier: Assembly-CSharp::IDMapRendererFeature
   m_Active: 1
-  overrideMaterial: {fileID: 2100000, guid: 154fae3fecc23494ea768cc45ae07da3, type: 2}
+  idAndNormalMaterial: {fileID: 2100000, guid: 154fae3fecc23494ea768cc45ae07da3, type: 2}
+  outlineMaterial: {fileID: 2100000, guid: da1f613e8d16661988a4439b2ada24b8, type: 2}
   layerMask:
     serializedVersion: 2
-    m_Bits: 0
+    m_Bits: 8

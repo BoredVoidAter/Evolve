@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.RenderGraphModule;
@@ -5,104 +6,161 @@ using UnityEngine.Rendering.Universal;
 
 public class IDMapRendererFeature : ScriptableRendererFeature
 {
-    class IDMapPass : ScriptableRenderPass
+    class PixelOutlinePass : ScriptableRenderPass
     {
-        private Material overrideMaterial;
-        private LayerMask layerMask;
-        private ShaderTagId shaderTagId = new ShaderTagId("UniversalForward");
+        public Material idMaterial;
+        public Material outlineMaterial;
+        public LayerMask layerMask;
+        
+        private static readonly int IDMapID = Shader.PropertyToID("_IDMap");
+        private static readonly int NormalMapID = Shader.PropertyToID("_CustomNormalMap");
+        private List<ShaderTagId> shaderTagIds;
 
-        public IDMapPass(Material material, LayerMask layerMask)
+        public PixelOutlinePass(Material idMat, Material outMat, LayerMask mask)
         {
-            this.overrideMaterial = material;
-            this.layerMask = layerMask;
-            // Execute after opaque objects so we can read the depth buffer
-            this.renderPassEvent = RenderPassEvent.AfterRenderingOpaques;
+            this.idMaterial = idMat;
+            this.outlineMaterial = outMat;
+            this.layerMask = mask;
+            this.renderPassEvent = RenderPassEvent.BeforeRenderingPostProcessing; 
+            
+            shaderTagIds = new List<ShaderTagId> {
+                new ShaderTagId("UniversalForward"),
+                new ShaderTagId("UniversalForwardOnly"),
+                new ShaderTagId("LightweightForward"),
+                new ShaderTagId("SRPDefaultUnlit")
+            };
         }
 
-        // A struct to pass data into the Render Graph execution lambda
-        private class PassData
+        private class RenderIDData
         {
             public RendererListHandle rendererList;
-            public TextureHandle idMapTexture;
         }
 
-        // --- THE UNITY 6 RENDER GRAPH API ---
+        private class CopyData
+        {
+            public TextureHandle src;
+        }
+
+        private class BlitData
+        {
+            public Material material;
+            public TextureHandle src;
+            public TextureHandle idMap;
+            public TextureHandle normalMap;
+        }
+
         public override void RecordRenderGraph(RenderGraph renderGraph, ContextContainer frameData)
         {
-            if (overrideMaterial == null) return;
+            if (idMaterial == null || outlineMaterial == null) return;
 
-            // Extract the data we need from the URP context
             UniversalRenderingData renderingData = frameData.Get<UniversalRenderingData>();
             UniversalCameraData cameraData = frameData.Get<UniversalCameraData>();
             UniversalResourceData resourceData = frameData.Get<UniversalResourceData>();
 
-            // 1. Create a descriptor for our ID Map texture
-            RenderTextureDescriptor desc = cameraData.cameraTargetDescriptor;
-            desc.colorFormat = RenderTextureFormat.ARGB32;
-            desc.depthBufferBits = 0; // Don't allocate depth, we'll borrow the camera's!
-            
-            // 2. Allocate the texture in the Render Graph using URP's helper method
-            TextureHandle idMapTex = UniversalRenderer.CreateRenderGraphTexture(renderGraph, desc, "_IDMap", false);
+            TextureHandle cameraColor = resourceData.activeColorTexture;
+            if (!cameraColor.IsValid()) return;
 
-            // 3. Set up how to draw the objects
-            SortingCriteria sortingCriteria = cameraData.defaultOpaqueSortFlags;
-            DrawingSettings drawingSettings = new DrawingSettings(shaderTagId, new SortingSettings(cameraData.camera) { criteria = sortingCriteria });
-            drawingSettings.overrideMaterial = overrideMaterial;
+            RenderTextureDescriptor desc = cameraData.cameraTargetDescriptor;
+            desc.msaaSamples = 1; // Force 1 for ID and Normal Maps
+            desc.depthBufferBits = 0;
+            desc.colorFormat = RenderTextureFormat.ARGB32;
+
+            // 1. Create ID and Normal Map textures (Render Graph handles lifecycle automatically)
+            TextureHandle idMapTex = UniversalRenderer.CreateRenderGraphTexture(renderGraph, desc, "_IDMapRT", false);
+            TextureHandle normalMapTex = UniversalRenderer.CreateRenderGraphTexture(renderGraph, desc, "_CustomNormalMapRT", false);
+
+            // 2. Render ID & Normals Pass
+            DrawingSettings drawingSettings = new DrawingSettings(shaderTagIds[0], new SortingSettings(cameraData.camera) { criteria = cameraData.defaultOpaqueSortFlags });
+            for (int i = 1; i < shaderTagIds.Count; i++)
+                drawingSettings.SetShaderPassName(i, shaderTagIds[i]);
+
+            drawingSettings.overrideMaterial = idMaterial;
+            drawingSettings.overrideMaterialPassIndex = 0;
             
             FilteringSettings filteringSettings = new FilteringSettings(RenderQueueRange.opaque, layerMask);
-            
-            // Create the Renderer List
             RendererListParams listParams = new RendererListParams(renderingData.cullResults, drawingSettings, filteringSettings);
             RendererListHandle rendererList = renderGraph.CreateRendererList(listParams);
 
-            // 4. Build the Raster Render Pass
-            using (var builder = renderGraph.AddRasterRenderPass<PassData>("IDMapRenderPass", out var passData))
+            using (var builder = renderGraph.AddRasterRenderPass<RenderIDData>("IDMap Render", out var passData))
             {
                 passData.rendererList = rendererList;
-                passData.idMapTexture = idMapTex;
-
-                // Set our custom texture as the color target
                 builder.SetRenderAttachment(idMapTex, 0, AccessFlags.Write);
+                builder.SetRenderAttachment(normalMapTex, 1, AccessFlags.Write);
                 
-                // Bind the main camera's depth buffer (Read-Only) for accurate occlusion
-                builder.SetRenderAttachmentDepth(resourceData.activeDepthTexture, AccessFlags.Read);
-                
+                TextureHandle depthTex = resourceData.activeDepthTexture;
+                if (depthTex.IsValid())
+                    builder.SetRenderAttachmentDepth(depthTex, AccessFlags.Read);
+
                 builder.UseRendererList(rendererList);
-                
-                // Allow setting global textures for the Shader Graph
-                builder.AllowGlobalStateModification(true);
+                builder.AllowPassCulling(false);
 
-                // Register the global texture safely AFTER the pass finishes writing to it
-                builder.SetGlobalTextureAfterPass(idMapTex, Shader.PropertyToID("_IDMap"));
-
-                // 5. Execute the drawing commands
-                builder.SetRenderFunc((PassData data, RasterGraphContext context) =>
+                builder.SetRenderFunc((RenderIDData data, RasterGraphContext context) =>
                 {
-                    // Clear background to black (ID 0)
-                    context.cmd.ClearRenderTarget(false, true, Color.black);
-                    
-                    // Draw the creatures/objects
+                    context.cmd.ClearRenderTarget(false, true, Color.clear);
                     context.cmd.DrawRendererList(data.rendererList);
+                });
+            }
+
+            // 3. Copy Camera Color to Temp Texture
+            RenderTextureDescriptor copyDesc = cameraData.cameraTargetDescriptor;
+            copyDesc.depthBufferBits = 0;
+            TextureHandle tempColorTex = UniversalRenderer.CreateRenderGraphTexture(renderGraph, copyDesc, "_TempCameraColor", false);
+
+            using (var builder = renderGraph.AddRasterRenderPass<CopyData>("Copy Camera Color", out var passData))
+            {
+                passData.src = cameraColor;
+                builder.UseTexture(cameraColor, AccessFlags.Read);
+                builder.SetRenderAttachment(tempColorTex, 0, AccessFlags.Write);
+                
+                builder.SetRenderFunc((CopyData data, RasterGraphContext context) =>
+                {
+                    Blitter.BlitTexture(context.cmd, data.src, new Vector4(1, 1, 0, 0), 0, false);
+                });
+            }
+
+            // 4. Blit Outline Fullscreen Pass explicitly depending on the maps we generated
+            using (var builder = renderGraph.AddRasterRenderPass<BlitData>("Pixel Outline Blit", out var passData))
+            {
+                passData.material = outlineMaterial;
+                passData.idMap = idMapTex;
+                passData.normalMap = normalMapTex;
+                passData.src = tempColorTex;
+
+                builder.UseTexture(tempColorTex, AccessFlags.Read);
+                builder.UseTexture(idMapTex, AccessFlags.Read);
+                builder.UseTexture(normalMapTex, AccessFlags.Read);
+                
+                // Write directly back to camera color
+                builder.SetRenderAttachment(cameraColor, 0, AccessFlags.Write);
+
+                builder.SetRenderFunc((BlitData data, RasterGraphContext context) =>
+                {
+                    data.material.SetTexture(IDMapID, data.idMap);
+                    data.material.SetTexture(NormalMapID, data.normalMap);
+                    // BlitTexture automatically binds data.src to "_BlitTexture", exactly what URP Sample Buffer expects!
+                    Blitter.BlitTexture(context.cmd, data.src, new Vector4(1, 1, 0, 0), data.material, 0);
                 });
             }
         }
     }
 
-    public Material overrideMaterial;
+    public Material idAndNormalMaterial;
+    public Material outlineMaterial;
     public LayerMask layerMask;
-    private IDMapPass idMapPass;
+    
+    private PixelOutlinePass outlinePass;
 
     public override void Create()
     {
-        idMapPass = new IDMapPass(overrideMaterial, layerMask);
+        outlinePass = new PixelOutlinePass(idAndNormalMaterial, outlineMaterial, layerMask);
     }
 
     public override void AddRenderPasses(ScriptableRenderer renderer, ref RenderingData renderingData)
     {
-        // Add only for Game and Scene views
-        if (overrideMaterial != null && (renderingData.cameraData.cameraType == CameraType.Game || renderingData.cameraData.cameraType == CameraType.SceneView))
+        if (idAndNormalMaterial != null && outlineMaterial != null && 
+           (renderingData.cameraData.cameraType == CameraType.Game || renderingData.cameraData.cameraType == CameraType.SceneView))
         {
-            renderer.EnqueuePass(idMapPass);
+            renderer.EnqueuePass(outlinePass);
         }
     }
 }
