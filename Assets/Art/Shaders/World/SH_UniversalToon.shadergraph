@@ -310,7 +310,7 @@
                 "m_Node": {
                     "m_Id": "681783d931e242628f879be4ba1bdb3c"
                 },
-                "m_SlotId": 1
+                "m_SlotId": 0
             }
         },
         {
@@ -338,7 +338,7 @@
                 "m_Node": {
                     "m_Id": "681783d931e242628f879be4ba1bdb3c"
                 },
-                "m_SlotId": 0
+                "m_SlotId": 1
             }
         },
         {
@@ -611,7 +611,7 @@
     "m_Group": {
         "m_Id": "222396658455473085b5a750433e69f5"
     },
-    "m_Name": "GetMainLight (Custom Function)",
+    "m_Name": "GetMainLightData (Custom Function)",
     "m_DrawState": {
         "m_Expanded": true,
         "m_Position": {
@@ -647,9 +647,9 @@
     "m_CustomColors": {
         "m_SerializableColors": []
     },
-    "m_SourceType": 1,
-    "m_FunctionName": "GetMainLight",
-    "m_FunctionSource": "",
+    "m_SourceType": 0,
+    "m_FunctionName": "GetMainLightData",
+    "m_FunctionSource": "14000f91e76bd5d39ab560838321a120",
     "m_FunctionSourceUsePragmas": true,
     "m_FunctionBody": "#if defined(SHADERGRAPH_PREVIEW) || !defined(UNIVERSAL_LIGHTING_INCLUDED)\n    // Safe fallback for previews and non-lit passes (like Depth/Shadows)\n    Direction = float3(0.5, 0.5, 0);\n    Color = float3(1, 1, 1);\n    ShadowAtten = 1.0;\n#else\n    // Actually grab the light data\n    Light mainLight = GetMainLight(TransformWorldToShadowCoord(WorldPos));\n    Direction = mainLight.direction;\n    Color = mainLight.color;\n    \n    // URP calculates shadows. If you have no shadows cast, this defaults to 1.\n    ShadowAtten = mainLight.shadowAttenuation * mainLight.distanceAttenuation;\n#endif"
 }
@@ -757,7 +757,7 @@
     "m_Title": "Texture",
     "m_Position": {
         "x": -826.9999389648438,
-        "y": -174.0
+        "y": -174.00003051757813
     }
 }
 

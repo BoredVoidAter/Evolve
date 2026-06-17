@@ -66,8 +66,8 @@ public class IDMapRendererFeature : ScriptableRendererFeature
             desc.colorFormat = RenderTextureFormat.ARGB32;
 
             // 1. Create ID and Normal Map textures (Render Graph handles lifecycle automatically)
-            TextureHandle idMapTex = UniversalRenderer.CreateRenderGraphTexture(renderGraph, desc, "_IDMapRT", false);
-            TextureHandle normalMapTex = UniversalRenderer.CreateRenderGraphTexture(renderGraph, desc, "_CustomNormalMapRT", false);
+            TextureHandle idMapTex = UniversalRenderer.CreateRenderGraphTexture(renderGraph, desc, "_IDMapRT", false, FilterMode.Point);
+            TextureHandle normalMapTex = UniversalRenderer.CreateRenderGraphTexture(renderGraph, desc, "_CustomNormalMapRT", false, FilterMode.Point);
 
             // 2. Render ID & Normals Pass
             DrawingSettings drawingSettings = new DrawingSettings(shaderTagIds[0], new SortingSettings(cameraData.camera) { criteria = cameraData.defaultOpaqueSortFlags });
