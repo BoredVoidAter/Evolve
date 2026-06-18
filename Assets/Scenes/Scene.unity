@@ -521,11 +521,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1d33f5e7d416a221d8d045fa30aa7c3c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::WorldGenerator
-  mapRadius: 30
-  hexOuterRadius: 3
-  noiseScale: 0.1
-  heightMultiplier: 3
-  waterLevel: 0.25
+  mapRadius: 50
+  hexOuterRadius: 1
+  heightMultiplier: 10
+  waterLevel: 0.35
+  saveToCSV: 1
+  printToConsole: 0
+  exportFilename: BiomeDebugData.csv
 --- !u!4 &414261770
 Transform:
   m_ObjectHideFlags: 0
