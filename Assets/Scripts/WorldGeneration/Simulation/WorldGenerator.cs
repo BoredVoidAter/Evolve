@@ -99,7 +99,15 @@ public class WorldGenerator : MonoBehaviour
 
                 if (cell.elevation <= actualWaterLevel)
                 {
-                    cell.biome = cell.temperature < 0.25f ? BiomeType.IceCap : BiomeType.Ocean;
+                  if (cell.temperature < 0.25f)
+                    {
+                        cell.biome = BiomeType.IceCap;
+                        cell.elevation = actualWaterLevel + 0.25f; 
+                    }
+                    else
+                    {
+                        cell.biome = BiomeType.Ocean;
+                    }
                 }
                 else if (cell.elevation <= actualWaterLevel + (heightMultiplier * 0.06f))
                 {

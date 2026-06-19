@@ -284,8 +284,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::IsometricCameraController
   zoomSpeed: 1
-  minZoom: 1
-  maxZoom: 40
+  minZoom: 0.5
+  maxZoom: 50
   heightOffset: 150
 --- !u!1 &371201777
 GameObject:
@@ -526,7 +526,7 @@ MonoBehaviour:
   hexPrefab: {fileID: 7471155149499303251, guid: 895e7da5b9aa1e109adf25f99bf1ee92, type: 3}
   hexMaterial: {fileID: 2100000, guid: b3734324a1232ac28968b4ff9218d3b5, type: 2}
   waterMaterial: {fileID: 2100000, guid: f9010cc5c4a10f7908fa4c5c5f38baa0, type: 2}
-  bedrockElevation: -10
+  bedrockElevation: -8
 --- !u!114 &414261769
 MonoBehaviour:
   m_ObjectHideFlags: 0
