@@ -132,6 +132,7 @@ GameObject:
   - component: {fileID: 330585544}
   - component: {fileID: 330585547}
   - component: {fileID: 330585548}
+  - component: {fileID: 330585549}
   m_Layer: 0
   m_Name: Pixel Camera
   m_TagString: MainCamera
@@ -270,6 +271,22 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ModernPixelPerfectCamera
   targetRenderTexture: {fileID: 8400000, guid: 2f8e6d43b20300a3da819b3ef87a82c3, type: 2}
+--- !u!114 &330585549
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 330585543}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 34656bedef7c52577a43ce3951e1fdf6, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::IsometricCameraController
+  zoomSpeed: 1
+  minZoom: 1
+  maxZoom: 40
+  heightOffset: 150
 --- !u!1 &371201777
 GameObject:
   m_ObjectHideFlags: 0
@@ -508,6 +525,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::HexGridVisualizer
   hexPrefab: {fileID: 7471155149499303251, guid: 895e7da5b9aa1e109adf25f99bf1ee92, type: 3}
   hexMaterial: {fileID: 2100000, guid: b3734324a1232ac28968b4ff9218d3b5, type: 2}
+  waterMaterial: {fileID: 2100000, guid: f9010cc5c4a10f7908fa4c5c5f38baa0, type: 2}
   bedrockElevation: -10
 --- !u!114 &414261769
 MonoBehaviour:
@@ -523,7 +541,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::WorldGenerator
   mapRadius: 50
   hexOuterRadius: 1
-  heightMultiplier: 10
+  heightMultiplier: 4
   waterLevel: 0.35
   saveToCSV: 1
   printToConsole: 0

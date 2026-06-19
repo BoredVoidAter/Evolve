@@ -7,6 +7,7 @@ public class HexGridVisualizer : MonoBehaviour
     [Header("Prefabs & Materials")]
     public GameObject hexPrefab;
     public Material hexMaterial;
+    public Material waterMaterial;
     
     [Header("Terrain Settings")]
     public float bedrockElevation = -10f;
@@ -20,8 +21,6 @@ public class HexGridVisualizer : MonoBehaviour
         _generator.GenerateWorld();
         RenderGrid(_generator.gridData);
         
-        // TIP: If you want a flat water plane with shaders to sit on top of the map, 
-        // spawn a Unity Plane at Y = (_generator.heightMultiplier * _generator.waterLevel)
     }
 
     public void RenderGrid(HexGridData data)
@@ -79,6 +78,30 @@ public class HexGridVisualizer : MonoBehaviour
             }
 
             _spawnedHexes.Add(hexGO);
+        }
+
+        if (waterMaterial != null)
+        {
+            GameObject waterPlane = GameObject.CreatePrimitive(PrimitiveType.Quad);
+            waterPlane.name = "GlobalWaterPlane";
+            waterPlane.transform.SetParent(transform);
+
+            float maxWaterHeight = _generator.heightMultiplier * _generator.waterLevel;
+            float yPos = maxWaterHeight + 0.05f;
+
+            waterPlane.transform.position = new Vector3(0, yPos, 0); 
+            waterPlane.transform.rotation = Quaternion.Euler(90f, 0f, 0f);
+
+            // Scale to comfortably cover the entire generated hex radius area
+            float mapSize = _generator.mapRadius * _generator.hexOuterRadius * 4f;
+            waterPlane.transform.localScale = new Vector3(mapSize, mapSize, 1f);
+
+            Renderer rend = waterPlane.GetComponent<Renderer>();
+            rend.sharedMaterial = waterMaterial;
+            rend.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            rend.receiveShadows = false;
+
+            _spawnedHexes.Add(waterPlane);
         }
     }
 
