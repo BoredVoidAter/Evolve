@@ -532,6 +532,15 @@ MonoBehaviour:
   bedrockElevation: -8
   riverElevationOffset: 0.005
   riverWidthMultiplier: 1.3
+  biomeDecorations:
+  - biome: 5
+    decorationPrefab: {fileID: 8267575376387818679, guid: 589ec06090cc2e74d99c818ae1efc960, type: 3}
+  - biome: 1
+    decorationPrefab: {fileID: 8267575376387818679, guid: fd93bc71a89be5910b18802d72adaf64, type: 3}
+  - biome: 10
+    decorationPrefab: {fileID: 8267575376387818679, guid: 0eb159d1853423e02b57d565d5973ead, type: 3}
+  - biome: 10
+    decorationPrefab: {fileID: 8267575376387818679, guid: e51b34121e8fa22368b10816a04c2139, type: 3}
 --- !u!114 &414261769
 MonoBehaviour:
   m_ObjectHideFlags: 0

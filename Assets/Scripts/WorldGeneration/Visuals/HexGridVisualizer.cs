@@ -24,6 +24,9 @@ public class HexGridVisualizer : MonoBehaviour
     public float riverWidthMultiplier = 1f;
     private WorldGenerator _generator;
     private List<GameObject> _spawnedHexes = new List<GameObject>();
+    [Header("Decorations")]
+    public List<BiomeDecoration> biomeDecorations;
+    private Dictionary<BiomeType, GameObject> _decorationDict;
     void Start()
     {
         _generator = GetComponent<WorldGenerator>();
@@ -31,6 +34,12 @@ public class HexGridVisualizer : MonoBehaviour
         {
             _generator.GenerateWorld();
             RenderGrid(_generator.gridData);
+        }
+
+        _decorationDict = new Dictionary<BiomeType, GameObject>();
+        foreach (var dec in biomeDecorations)
+        {
+            _decorationDict[dec.biome] = dec.decorationPrefab;
         }
     }
     public void ClearGrid()
@@ -46,13 +55,28 @@ public class HexGridVisualizer : MonoBehaviour
             HexCell cell = kvp.Value;
             GameObject hexGO = Instantiate(hexPrefab, transform);
             float totalHeight = cell.elevation - bedrockElevation;
-            hexGO.transform.localScale = new Vector3(_generator.hexOuterRadius * 2f, totalHeight, _generator.hexOuterRadius * 2f);
+            hexGO.transform.localScale = new Vector3(_generator.hexOuterRadius, totalHeight, _generator.hexOuterRadius);
             Vector3 worldPos = cell.coordinates.ToWorldPosition(_generator.hexOuterRadius);
             float yPos = bedrockElevation + (totalHeight / 2f);
             hexGO.transform.position = new Vector3(worldPos.x, yPos, worldPos.z);
             Renderer rend = hexGO.GetComponentInChildren<Renderer>();
             MeshFilter mf = hexGO.GetComponentInChildren<MeshFilter>();
-            if (rend != null && mf != null)
+
+            Vector3 anchorPos = new Vector3(worldPos.x, cell.elevation, worldPos.z);
+
+            if (_decorationDict.TryGetValue(cell.biome, out GameObject prefab) && prefab != null)
+            {
+                GameObject decoration = Instantiate(prefab, anchorPos, Quaternion.identity, hexGO.transform);
+            }
+            
+            MeshCollider mc = hexGO.GetComponent<MeshCollider>();
+            if (mc == null) mc = hexGO.AddComponent<MeshCollider>();
+            
+            HexTileInfo info = hexGO.GetComponent<HexTileInfo>();
+            if (info == null) info = hexGO.AddComponent<HexTileInfo>();
+            info.coordinates = cell.coordinates;
+
+            if (rend != null && mf != null) 
             {
                 rend.sharedMaterial = hexMaterial;
                 Mesh instancedMesh = mf.mesh;
@@ -253,6 +277,9 @@ public class HexGridVisualizer : MonoBehaviour
         riverMesh.SetUVs(1, flowDirs);
         riverMesh.RecalculateNormals();
         mf.mesh = riverMesh;
+        
+        MeshCollider rmc = riverSystem.AddComponent<MeshCollider>();
+        rmc.sharedMesh = riverMesh; 
     }
     private void CreateWaterfallParticles(Vector3 bottomPos, Vector3 flowDirXZ, float dropHeight, int volume)
     {
@@ -314,8 +341,12 @@ public class HexGridVisualizer : MonoBehaviour
         waterMesh.triangles = triangles;
         waterMesh.RecalculateNormals();
         mf.mesh = waterMesh;
+        
+        MeshCollider wmc = waterPlane.AddComponent<MeshCollider>();
+        wmc.sharedMesh = waterMesh;
+        
         rend.sharedMaterial = waterMaterial;
-        rend.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        rend.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off; 
         rend.receiveShadows = false;
         _spawnedHexes.Add(waterPlane);
     }
