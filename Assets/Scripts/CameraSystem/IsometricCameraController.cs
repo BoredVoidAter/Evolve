@@ -39,11 +39,30 @@ public class IsometricCameraController : MonoBehaviour
     void Update()
     {
         if (Mouse.current == null) return;
-        HandleZoom();
+
+        // Check for Ctrl + Scroll to toggle underwater view
+        if (Keyboard.current != null && (Keyboard.current.leftCtrlKey.isPressed || Keyboard.current.rightCtrlKey.isPressed))
+        {
+            float scroll = Mouse.current.scroll.ReadValue().y;
+            if (Mathf.Abs(scroll) > 0.01f)
+            {
+                HexGridVisualizer visualizer = FindObjectOfType<HexGridVisualizer>();
+                if (visualizer != null)
+                {
+                    // Scroll down = Go Underwater | Scroll up = Surface
+                    if (scroll < 0 && !visualizer.isUnderwater)
+                        visualizer.SetUnderwaterMode(true);
+                    else if (scroll > 0 && visualizer.isUnderwater)
+                        visualizer.SetUnderwaterMode(false);
+                }
+            }
+        }
+        else
+        {
+            HandleZoom(); // Standard zoom if Ctrl isn't held
+        }
+
         HandlePan();
-
-        Debug.Log(_cam.orthographicSize);
-
         Shader.SetGlobalFloat("_GlobalZoom", _cam.orthographicSize);
     }
 
@@ -67,20 +86,16 @@ public class IsometricCameraController : MonoBehaviour
                          Mouse.current.rightButton.isPressed ||
                          Mouse.current.middleButton.isPressed;
         Vector2 currentMousePos = Mouse.current.position.ReadValue();
-        
         if (isClickDown)
         {
             _lastMousePos = currentMousePos;
         }
         if (isHolding)
         {
-            // Convert to viewport coordinates so panning works accurately with scaling RenderTextures
             Vector2 currentViewportPos = new Vector2(currentMousePos.x / Screen.width, currentMousePos.y / Screen.height);
             Vector2 lastViewportPos = new Vector2(_lastMousePos.x / Screen.width, _lastMousePos.y / Screen.height);
-
             Ray currentRay = _cam.ViewportPointToRay(currentViewportPos);
             Ray lastRay = _cam.ViewportPointToRay(lastViewportPos);
-
             if (_groundPlane.Raycast(currentRay, out float currentDist) && _groundPlane.Raycast(lastRay, out float lastDist))
             {
                 Vector3 currentPoint = currentRay.GetPoint(currentDist);

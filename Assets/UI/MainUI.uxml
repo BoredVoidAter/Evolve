@@ -1,0 +1,76 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements" editor-extension-mode="False">
+    <Style src="MainStyles.uss" />
+
+    <!-- MAIN MENU (With custom background image) -->
+    <ui:VisualElement name="main-menu-screen" class="fullscreen-bg">
+        
+        <!-- SIDEBAR NAVIGATION -->
+        <ui:VisualElement class="sidebar">
+            <ui:VisualElement name="logo" class="sidebar-logo" />
+            <ui:Label text="V3.0.6" class="sidebar-subtitle" /> 
+            
+            <ui:VisualElement class="spacer" />
+            
+            <ui:Button name="tab-new" text="NEW GAME" class="sidebar-btn" />
+            <ui:Button name="tab-load" text="LOAD GAME" class="sidebar-btn" />
+            <ui:Button name="tab-settings" text="SETTINGS" class="sidebar-btn" />
+            
+            <ui:VisualElement class="spacer-large" />
+            
+            <ui:Button name="btn-quit" text="EXIT" class="sidebar-btn quit-btn" />
+        </ui:VisualElement>
+
+        <!-- CONTENT AREA (Changes based on sidebar selection) -->
+        <ui:VisualElement class="content-area">
+            
+            <!-- NEW GAME PANEL -->
+            <ui:VisualElement name="panel-new" class="content-panel">
+                <ui:Label text="NEW GAME" class="panel-header" />
+                <ui:VisualElement class="section-divider" />
+                <ui:TextField name="seed-input" label="World Seed:" value="12345" class="input-field" />
+                <ui:Button name="btn-generate" text="GENERATE" class="action-btn" />
+            </ui:VisualElement>
+
+            <!-- LOAD GAME PANEL -->
+            <ui:VisualElement name="panel-load" class="content-panel" style="display: none;">
+                <ui:Label text="LOAD GAME" class="panel-header" />
+                <ui:VisualElement class="section-divider" />
+                <ui:TextField name="load-name-input" label="Archive ID:" value="world_save_1" class="input-field" />
+                <ui:Button name="btn-load" text="LOAD" class="action-btn" />
+            </ui:VisualElement>
+
+            <!-- SETTINGS PANEL -->
+            <ui:VisualElement name="panel-settings" class="content-panel" style="display: none;">
+                <ui:Label text="SETTINGS" class="panel-header" />
+                <ui:VisualElement class="section-divider" />
+                <ui:Toggle name="toggle-fullscreen" label="Fullscreen Override" class="toggle-field" />
+                <ui:Slider name="slider-volume" label="Audio Output" low-value="0" high-value="1" class="slider-field" />
+            </ui:VisualElement>
+
+        </ui:VisualElement>
+    </ui:VisualElement>
+
+    <!-- PAUSE MENU OVERLAY -->
+    <ui:VisualElement name="pause-menu-screen" class="screen-container" style="display: none;">
+        <ui:VisualElement class="center-panel">
+            <ui:Label text="PAUSED" class="panel-header" />
+            <ui:VisualElement class="section-divider" />
+            
+            <ui:Button name="btn-resume" text="RESUME" class="action-btn" />
+            
+            <ui:TextField name="save-name-input" label="Save As:" value="world_save_1" class="input-field" style="margin-top: 20px;" />
+            <ui:Button name="btn-save" text="SAVE" class="action-btn" />
+            
+            <ui:VisualElement class="section-divider" />
+            <ui:Button name="btn-main-menu" text="RETURN TO DESKTOP" class="action-btn quit-btn" />
+        </ui:VisualElement>
+    </ui:VisualElement>
+
+    <!-- IN-GAME HUD: HOVER SCANNER -->
+    <ui:VisualElement name="hover-scanner-panel" class="hover-panel" style="display: none;">
+        <ui:Label name="hover-title" text="SCANNER OFFLINE" class="hover-title" />
+        <ui:VisualElement class="hover-divider" />
+        <ui:Label name="hover-data" text="Awaiting data..." class="hover-data-text" />
+    </ui:VisualElement>
+
+</ui:UXML>
