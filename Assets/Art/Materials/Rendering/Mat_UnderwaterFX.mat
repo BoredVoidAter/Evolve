@@ -109,13 +109,16 @@ Material:
     - _ClearCoatMask: 0
     - _ClearCoatSmoothness: 0
     - _Cull: 2
+    - _CutawayDarkness: 0.25
+    - _CutawayTolerance: 0.06
     - _Cutoff: 0.5
     - _DetailAlbedoMapScale: 1
     - _DetailNormalMapScale: 1
+    - _DitherBand: 0.3
     - _DstBlend: 0
     - _DstBlendAlpha: 0
     - _EnvironmentReflections: 1
-    - _FXResolution: 100
+    - _FXResolution: 240
     - _FogDensity: -54.7
     - _FogOffset: 298.77
     - _GlossMapScale: 0

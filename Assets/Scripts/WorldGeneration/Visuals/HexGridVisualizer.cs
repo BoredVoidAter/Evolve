@@ -137,12 +137,14 @@ public class HexGridVisualizer : MonoBehaviour
         float maxWaterHeight = _generator.heightMultiplier * _generator.waterLevel;
         float R = _generator.hexOuterRadius;
 
+        // Broadcast the water level globally so the Post Process Shader knows where to cut off!
+        Shader.SetGlobalFloat("_WaterLevel", maxWaterHeight);
+
         // Toggle rendering of water meshes AND waterfall particles
         foreach (var obj in _waterObjects)
         {
             if (obj != null)
             {
-                // Disable the culling scripts so they stop fighting us
                 ParticleSystemCulling[] cullers = obj.GetComponentsInChildren<ParticleSystemCulling>(true);
                 foreach (var culler in cullers) culler.enabled = !underwater;
 
@@ -182,7 +184,6 @@ public class HexGridVisualizer : MonoBehaviour
             // Hide/Show decorations (Foliage particles) WITHOUT killing their state
             if (tile.decorationInstance != null)
             {
-                // Disable the culling scripts so they stop fighting us
                 ParticleSystemCulling[] cullers = tile.decorationInstance.GetComponentsInChildren<ParticleSystemCulling>(true);
                 foreach (var culler in cullers) culler.enabled = !isCut;
 
@@ -190,7 +191,7 @@ public class HexGridVisualizer : MonoBehaviour
                 foreach (var r in renderers) r.enabled = !isCut;
             }
         }
-    } 
+    }
 
     private Vector3 GetCorner(int index, float radius)
     {
