@@ -137,10 +137,18 @@ public class HexGridVisualizer : MonoBehaviour
         float maxWaterHeight = _generator.heightMultiplier * _generator.waterLevel;
         float R = _generator.hexOuterRadius;
 
-        // Toggle rendering of physical water meshes
+        // Toggle rendering of water meshes AND waterfall particles
         foreach (var obj in _waterObjects)
         {
-            if (obj != null) obj.SetActive(!underwater);
+            if (obj != null)
+            {
+                // Disable the culling scripts so they stop fighting us
+                ParticleSystemCulling[] cullers = obj.GetComponentsInChildren<ParticleSystemCulling>(true);
+                foreach (var culler in cullers) culler.enabled = !underwater;
+
+                Renderer[] renderers = obj.GetComponentsInChildren<Renderer>(true);
+                foreach (var r in renderers) r.enabled = !underwater;
+            }
         }
 
         // Snap Hexes
@@ -152,10 +160,12 @@ public class HexGridVisualizer : MonoBehaviour
             float targetElevation = isCut ? maxWaterHeight : tile.originalElevation;
             float totalHeight = targetElevation - bedrockElevation;
 
+            // Flatten/Restore Hex Scale & Position
             tile.transform.localScale = new Vector3(R, totalHeight, R);
             Vector3 worldPos = tile.coordinates.ToWorldPosition(R);
             tile.transform.position = new Vector3(worldPos.x, bedrockElevation + (totalHeight / 2f), worldPos.z);
 
+            // Swap to Dirt UVs
             if (tile.meshFilter != null && tile.meshFilter.mesh != null)
             {
                 Mesh mesh = tile.meshFilter.mesh;
@@ -169,13 +179,19 @@ public class HexGridVisualizer : MonoBehaviour
                 mesh.SetUVs(1, uv1);
             }
 
+            // Hide/Show decorations (Foliage particles) WITHOUT killing their state
             if (tile.decorationInstance != null)
             {
-                tile.decorationInstance.SetActive(!isCut);
+                // Disable the culling scripts so they stop fighting us
+                ParticleSystemCulling[] cullers = tile.decorationInstance.GetComponentsInChildren<ParticleSystemCulling>(true);
+                foreach (var culler in cullers) culler.enabled = !isCut;
+
+                Renderer[] renderers = tile.decorationInstance.GetComponentsInChildren<Renderer>(true);
+                foreach (var r in renderers) r.enabled = !isCut;
             }
         }
-    }
- 
+    } 
+
     private Vector3 GetCorner(int index, float radius)
     {
         float angle = (-index * 60f - 30f) * Mathf.Deg2Rad;
