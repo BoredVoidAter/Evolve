@@ -1,7 +1,7 @@
-// File Path: Assets/Scripts/WorldGeneration/Simulation/WorldGenerator.cs
 using UnityEngine;
 using System.Text;
 using System.IO;
+using System.Collections;
 using System.Collections.Generic;
 using System;
 
@@ -26,13 +26,19 @@ public class WorldGenerator : MonoBehaviour
     public string exportFilename = "BiomeDebugData.csv";
     public HexGridData gridData { get; private set; }
     private System.Random rng;
+
     public void GenerateWorld()
+    {
+        IEnumerator routine = GenerateWorldAsync();
+        while (routine.MoveNext()) {}
+    }
+
+    public IEnumerator GenerateWorldAsync()
     {
         gridData = new HexGridData();
         rng = new System.Random(currentSeed);
-        
-        float seedOffsetX = (currentSeed % 1000) * 100f;
-        float seedOffsetZ = (currentSeed / 1000f) * 100f;
+        float seedOffsetX = (float)(rng.NextDouble() * 20000.0 - 10000.0);
+        float seedOffsetZ = (float)(rng.NextDouble() * 20000.0 - 10000.0); 
         
         float mapMaxRadius = mapRadius * hexOuterRadius * 1.5f;
         for (int q = -mapRadius; q <= mapRadius; q++)
@@ -44,8 +50,9 @@ public class WorldGenerator : MonoBehaviour
                 HexCoordinates coords = new HexCoordinates(q, r);
                 HexCell cell = new HexCell(coords);
                 Vector3 worldPos = coords.ToWorldPosition(hexOuterRadius);
-                float nx = worldPos.x + 12345.67f + seedOffsetX;
-                float nz = worldPos.z + 54321.89f + seedOffsetZ;
+                // Use purely the safe randomized offset
+                float nx = worldPos.x + seedOffsetX;
+                float nz = worldPos.z + seedOffsetZ; 
                 float continentNoise = Mathf.PerlinNoise(nx * 0.02f, nz * 0.02f);
                 float baseNoise = Mathf.PerlinNoise(nx * 0.08f, nz * 0.08f);
                 float elevationNoise = (continentNoise * 0.55f) + (baseNoise * 0.45f);
@@ -86,11 +93,19 @@ public class WorldGenerator : MonoBehaviour
                 cell.moisture = Mathf.Clamp01(mNoise * 1.2f - 0.1f);
                 gridData.AddCell(cell);
             }
+            if (q % 5 == 0) yield return null;
         }
+        
         GenerateRivers();
+        yield return null;
+        
         CalculateRiverVolumes();
+        yield return null;
+        
         AssignBiomes();
-        Debug.Log($"Generated World Data with {gridData.cells.Count} cells.");
+        yield return null;
+        
+        Debug.Log($"Generated World Data with {gridData.cells.Count} cells."); 
         if (saveToCSV || printToConsole) ExportBiomeData();
     }
     private void GenerateRivers()

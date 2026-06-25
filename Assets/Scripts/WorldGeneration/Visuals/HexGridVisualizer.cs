@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using System.Collections;
 
 [RequireComponent(typeof(WorldGenerator))]
 public class HexGridVisualizer : MonoBehaviour
@@ -66,10 +67,16 @@ public class HexGridVisualizer : MonoBehaviour
 
     public void RenderGrid(HexGridData data)
     {
-        ClearGrid();
+        IEnumerator routine = RenderGridAsync(data);
+        while (routine.MoveNext()) {}
+    }
 
+    public IEnumerator RenderGridAsync(HexGridData data)
+    {
+        ClearGrid();
+        int count = 0;
         foreach (var kvp in data.cells)
-        {
+        { 
             HexCell cell = kvp.Value;
             GameObject hexGO = Instantiate(hexPrefab, transform);
             
@@ -119,12 +126,20 @@ public class HexGridVisualizer : MonoBehaviour
             
             _spawnedHexes.Add(hexGO);
             _hexTiles.Add(info);
+            
+            count++;
+            if (count % 30 == 0) yield return null;
         }
-
+        
         if (waterMaterial != null) CreateGlobalWater();
+        yield return null;
+        
         RenderRiversAsMesh(data);
+        yield return null;
+        
         CullFoliageInWater();
     }
+
 
     public void SetUnderwaterMode(bool underwater)
     {
@@ -416,10 +431,11 @@ public class HexGridVisualizer : MonoBehaviour
         _waterObjects.Add(psObj);
 
         ParticleSystem ps = psObj.AddComponent<ParticleSystem>();
+        ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear); // Stop before modifying
+        
         ParticleSystemRenderer psr = psObj.GetComponent<ParticleSystemRenderer>();
         if (waterfallParticleMaterial != null) psr.material = waterfallParticleMaterial;
-        
-        var main = ps.main;
+        var main = ps.main; 
         main.duration = 1f;
         main.loop = true;
         main.startLifetime = new ParticleSystem.MinMaxCurve(0.2f, 0.4f);
@@ -439,6 +455,8 @@ public class HexGridVisualizer : MonoBehaviour
         var sizeOL = ps.sizeOverLifetime;
         sizeOL.enabled = true;
         sizeOL.size = new ParticleSystem.MinMaxCurve(1f, new AnimationCurve(new Keyframe(0, 1), new Keyframe(1, 0f)));
+        
+        ps.Play(); // Play manually after configuration is complete
     }
 
     private void CreateGlobalWater()

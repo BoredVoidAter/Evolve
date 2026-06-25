@@ -1,6 +1,17 @@
+// Assets/Scripts/UI/UIManager.cs
 using UnityEngine;
 using UnityEngine.UIElements;
 using UnityEngine.InputSystem;
+using System.Collections;
+using System.Collections.Generic;
+
+[System.Serializable]
+public class DemoMode
+{
+    public string demoName;
+    [Tooltip("The parent GameObject that contains all the logic for this demo.")]
+    public GameObject demoRootObject;
+}
 
 [RequireComponent(typeof(UIDocument))]
 public class UIManager : MonoBehaviour
@@ -8,19 +19,27 @@ public class UIManager : MonoBehaviour
     [Header("Dependencies")]
     public WorldGenerator worldGenerator;
     public HexGridVisualizer visualizer;
-    
+    [Tooltip("The parent GameObject holding the main planet generation, cameras, etc.")]
+    public GameObject mainWorldRoot; 
+
+    [Header("Debug Demos")]
+    public List<DemoMode> availableDemos = new List<DemoMode>();
+
     private UIDocument _uiDocument;
     private VisualElement _mainMenuScreen;
     private VisualElement _pauseMenuScreen;
     private VisualElement _panelNew;
     private VisualElement _panelLoad;
     private VisualElement _panelSettings;
-    
+    private VisualElement _panelDebug;
+    private VisualElement _debugDemosContainer;
     private VisualElement _hoverScannerPanel;
     private Label _hoverTitle;
     private Label _hoverData;
     private bool _scannerEnabled = true;
-    
+    private VisualElement _loadingScreen;
+    private VisualElement _loadingSpinner;
+    private float _spinnerRotation = 0f;
     private TextField _seedInput;
     private TextField _loadNameInput;
     private TextField _saveNameInput;
@@ -29,6 +48,7 @@ public class UIManager : MonoBehaviour
     
     private bool _isGameActive = false;
     private bool _isPaused = false;
+    private GameObject _currentActiveDemo;
 
     private void OnEnable()
     {
@@ -41,15 +61,17 @@ public class UIManager : MonoBehaviour
         _panelNew = root.Q<VisualElement>("panel-new");
         _panelLoad = root.Q<VisualElement>("panel-load");
         _panelSettings = root.Q<VisualElement>("panel-settings");
+        _panelDebug = root.Q<VisualElement>("panel-debug");
+        _debugDemosContainer = root.Q<VisualElement>("debug-demos-container");
         
         _hoverScannerPanel = root.Q<VisualElement>("hover-scanner-panel");
         _hoverTitle = root.Q<Label>("hover-title");
         _hoverData = root.Q<Label>("hover-data");
-        
+        _loadingScreen = root.Q<VisualElement>("loading-screen");
+        _loadingSpinner = root.Q<VisualElement>("loading-spinner");
         _seedInput = root.Q<TextField>("seed-input");
         _loadNameInput = root.Q<TextField>("load-name-input");
         _saveNameInput = root.Q<TextField>("save-name-input");
-        
         _fullscreenToggle = root.Q<Toggle>("toggle-fullscreen");
         _volumeSlider = root.Q<Slider>("slider-volume");
         
@@ -59,11 +81,13 @@ public class UIManager : MonoBehaviour
         root.Q<Button>("tab-new").clicked += () => ShowMainContent(_panelNew);
         root.Q<Button>("tab-load").clicked += () => ShowMainContent(_panelLoad);
         root.Q<Button>("tab-settings").clicked += () => ShowMainContent(_panelSettings);
-        root.Q<Button>("btn-quit").clicked += QuitGame;
         
+        Button tabDebug = root.Q<Button>("tab-debug");
+        if (tabDebug != null) tabDebug.clicked += () => ShowMainContent(_panelDebug);
+        
+        root.Q<Button>("btn-quit").clicked += QuitGame;
         root.Q<Button>("btn-generate").clicked += GenerateNewWorld;
         root.Q<Button>("btn-load").clicked += LoadWorld;
-        
         root.Q<Button>("btn-resume").clicked += TogglePause;
         root.Q<Button>("btn-save").clicked += SaveWorld;
         root.Q<Button>("btn-main-menu").clicked += ReturnToMainMenu;
@@ -74,26 +98,50 @@ public class UIManager : MonoBehaviour
         if (worldGenerator == null) worldGenerator = FindObjectOfType<WorldGenerator>();
         if (visualizer == null) visualizer = FindObjectOfType<HexGridVisualizer>();
         
+        // Populate debug demos list
+        if (_debugDemosContainer != null)
+        {
+            _debugDemosContainer.Clear();
+            for (int i = 0; i < availableDemos.Count; i++)
+            {
+                int index = i;
+                Button btn = new Button(() => LaunchDemo(index));
+                btn.text = availableDemos[i].demoName;
+                btn.AddToClassList("action-btn");
+                _debugDemosContainer.Add(btn);
+            }
+        }
+        
+        // Hide all demo root objects initially
+        foreach (var demo in availableDemos)
+        {
+            if (demo.demoRootObject != null)
+                demo.demoRootObject.SetActive(false);
+        }
+
         ReturnToMainMenu();
     }
 
     private void Update()
     {
+        if (_loadingScreen != null && _loadingScreen.style.display == DisplayStyle.Flex && _loadingSpinner != null)
+        {
+            _spinnerRotation += Time.deltaTime * 360f;
+            _loadingSpinner.style.rotate = new StyleRotate(new Rotate(Angle.Degrees(_spinnerRotation)));
+        }
+        
         if (Keyboard.current == null) return;
         
         if (_isGameActive && Keyboard.current.escapeKey.wasPressedThisFrame)
         {
             TogglePause();
         }
-        
         if (Keyboard.current.xKey.wasPressedThisFrame)
         {
             _scannerEnabled = !_scannerEnabled;
             if (!_scannerEnabled && _hoverScannerPanel != null)
                 _hoverScannerPanel.style.display = DisplayStyle.None;
         }
-
-        // Added 'U' keybind to toggle the underwater view
         if (Keyboard.current.uKey.wasPressedThisFrame)
         {
             if (visualizer != null)
@@ -101,7 +149,6 @@ public class UIManager : MonoBehaviour
                 visualizer.SetUnderwaterMode(!visualizer.isUnderwater);
             }
         }
-
         ProcessHoverScanner();
     }
 
@@ -119,7 +166,6 @@ public class UIManager : MonoBehaviour
             HexCoordinates coords;
             HexTileInfo info = hit.collider.GetComponentInParent<HexTileInfo>();
             bool isRiver = hit.collider.gameObject.name == "RiverSystem";
-            
             if (info != null)
             {
                 coords = info.coordinates;
@@ -154,7 +200,6 @@ public class UIManager : MonoBehaviour
             {
                 Vector3 targetHitPoint = ray.GetPoint(distance);
                 HexCoordinates coords = HexCoordinates.FromPosition(targetHitPoint, worldGenerator.hexOuterRadius);
-                
                 if (worldGenerator.gridData != null)
                 {
                     HexCell cell = worldGenerator.gridData.GetCell(coords);
@@ -174,7 +219,6 @@ public class UIManager : MonoBehaviour
                 }
             }
         }
-        
         _hoverScannerPanel.style.display = DisplayStyle.None;
     }
 
@@ -183,6 +227,8 @@ public class UIManager : MonoBehaviour
         _panelNew.style.display = DisplayStyle.None;
         _panelLoad.style.display = DisplayStyle.None;
         _panelSettings.style.display = DisplayStyle.None;
+        if (_panelDebug != null) _panelDebug.style.display = DisplayStyle.None;
+        
         if (panelToShow != null) panelToShow.style.display = DisplayStyle.Flex;
     }
 
@@ -192,11 +238,21 @@ public class UIManager : MonoBehaviour
         _isPaused = false;
         Time.timeScale = 1f;
         
+        if (_currentActiveDemo != null)
+        {
+            _currentActiveDemo.SetActive(false);
+            _currentActiveDemo = null;
+        }
+
+        // Re-enable the main world generation elements if we're back in the desktop/main view
+        if (mainWorldRoot != null) mainWorldRoot.SetActive(true);
+
         if (_hoverScannerPanel != null) _hoverScannerPanel.style.display = DisplayStyle.None;
         if (visualizer != null) visualizer.ClearGrid();
         
         _mainMenuScreen.style.display = DisplayStyle.Flex;
         _pauseMenuScreen.style.display = DisplayStyle.None;
+        
         ShowMainContent(_panelNew);
     }
 
@@ -205,9 +261,23 @@ public class UIManager : MonoBehaviour
         _isGameActive = true;
         _isPaused = false;
         Time.timeScale = 1f;
-        
         _mainMenuScreen.style.display = DisplayStyle.None;
         _pauseMenuScreen.style.display = DisplayStyle.None;
+    }
+
+    private void LaunchDemo(int index)
+    {
+        if (index < 0 || index >= availableDemos.Count) return;
+        
+        if (_currentActiveDemo != null) _currentActiveDemo.SetActive(false);
+        
+        // Disable the main game world/camera so it doesn't conflict with the demo
+        if (mainWorldRoot != null) mainWorldRoot.SetActive(false);
+
+        _currentActiveDemo = availableDemos[index].demoRootObject;
+        if (_currentActiveDemo != null) _currentActiveDemo.SetActive(true);
+        
+        StartGame();
     }
 
     private void TogglePause()
@@ -230,16 +300,32 @@ public class UIManager : MonoBehaviour
     {
         if (worldGenerator == null || visualizer == null) return;
         
+        // Ensure the main world root is active when generating a real world
+        if (mainWorldRoot != null) mainWorldRoot.SetActive(true);
+
         int seed = 12345;
         if (_seedInput != null && !string.IsNullOrEmpty(_seedInput.value))
         {
             if (!int.TryParse(_seedInput.value, out seed)) seed = _seedInput.value.GetHashCode();
         }
+        StartCoroutine(GenerateWorldRoutine(seed));
+    }
+
+    private IEnumerator GenerateWorldRoutine(int seed)
+    {
+        var sidebar = _mainMenuScreen.Q<VisualElement>(className: "sidebar");
+        if (sidebar != null) sidebar.style.display = DisplayStyle.None;
+        ShowMainContent(null);
+        
+        if (_loadingScreen != null) _loadingScreen.style.display = DisplayStyle.Flex;
+        yield return null;
         
         worldGenerator.currentSeed = seed;
-        worldGenerator.GenerateWorld();
-        visualizer.RenderGrid(worldGenerator.gridData);
+        yield return StartCoroutine(worldGenerator.GenerateWorldAsync());
+        yield return StartCoroutine(visualizer.RenderGridAsync(worldGenerator.gridData));
         
+        if (_loadingScreen != null) _loadingScreen.style.display = DisplayStyle.None;
+        if (sidebar != null) sidebar.style.display = DisplayStyle.Flex;
         StartGame();
     }
 
@@ -257,14 +343,37 @@ public class UIManager : MonoBehaviour
     {
         if (worldGenerator != null && visualizer != null)
         {
+            // Ensure the main world root is active when loading a real world
+            if (mainWorldRoot != null) mainWorldRoot.SetActive(true);
+
             string saveName = !string.IsNullOrEmpty(_loadNameInput.value) ? _loadNameInput.value : "default_save";
-            if (worldGenerator.LoadWorld(saveName))
-            {
-                visualizer.RenderGrid(worldGenerator.gridData);
-                if (_saveNameInput != null) _saveNameInput.value = saveName;
-                StartGame();
-            }
-            else Debug.LogWarning("Failed to load archive: " + saveName);
+            StartCoroutine(LoadWorldRoutine(saveName));
+        }
+    }
+
+    private IEnumerator LoadWorldRoutine(string saveName)
+    {
+        var sidebar = _mainMenuScreen.Q<VisualElement>(className: "sidebar");
+        if (sidebar != null) sidebar.style.display = DisplayStyle.None;
+        ShowMainContent(null);
+        
+        if (_loadingScreen != null) _loadingScreen.style.display = DisplayStyle.Flex;
+        yield return null;
+        
+        if (worldGenerator.LoadWorld(saveName))
+        {
+            yield return StartCoroutine(visualizer.RenderGridAsync(worldGenerator.gridData));
+            if (_saveNameInput != null) _saveNameInput.value = saveName;
+            if (_loadingScreen != null) _loadingScreen.style.display = DisplayStyle.None;
+            if (sidebar != null) sidebar.style.display = DisplayStyle.Flex;
+            StartGame();
+        }
+        else
+        {
+            Debug.LogWarning("Failed to load archive: " + saveName);
+            if (_loadingScreen != null) _loadingScreen.style.display = DisplayStyle.None;
+            if (sidebar != null) sidebar.style.display = DisplayStyle.Flex;
+            ShowMainContent(_panelLoad);
         }
     }
 

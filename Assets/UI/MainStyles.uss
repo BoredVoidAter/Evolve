@@ -156,3 +156,41 @@
 .hover-title { font-size: 28px; color: #00FFCC; text-shadow: 2px 2px 0px #02080C; }
 .hover-divider { height: 2px; background-color: #2ED1E5; margin: 8px 0; }
 .hover-data-text { font-size: 24px; color: #B0FBFF; white-space: normal; }
+
+/* =========================================================================
+   LOADING SCREEN
+   ========================================================================= */
+.loading-overlay {
+    position: absolute;
+    left: 0; top: 0; right: 0; bottom: 0;
+    justify-content: flex-end;
+    align-items: flex-end;
+    padding: 30px;
+    picking-mode: ignore;
+}
+
+.loading-container {
+    flex-direction: row;
+    align-items: center;
+    background-color: rgba(6, 26, 36, 0.95);
+    padding: 15px 25px;
+    border-width: 2px;
+    border-color: #2ED1E5;
+    border-bottom-width: 6px;
+}
+
+.loading-text {
+    font-size: 28px;
+    color: #00FFCC;
+    margin-right: 15px;
+}
+
+.loading-spinner-small {
+    width: 32px;
+    height: 32px;
+    border-width: 4px;
+    border-radius: 50%;
+    border-color: #2ED1E5;
+    border-top-color: transparent;
+    border-bottom-color: transparent;
+}
