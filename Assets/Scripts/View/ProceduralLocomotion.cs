@@ -73,7 +73,9 @@ public class ProceduralLocomotion : MonoBehaviour
             currentSpine = nextSpine;
         }
 
+        float maxLegLength = 0f;
         Transform[] allTransforms = GetComponentsInChildren<Transform>();
+        
         foreach (Transform t in allTransforms)
         {
             if (t.name.EndsWith("_Tip"))
@@ -104,12 +106,16 @@ public class ProceduralLocomotion : MonoBehaviour
                         leg.totalLength += dist;
                     }
 
+                    if (leg.totalLength > maxLegLength) maxLegLength = leg.totalLength;
+
                     leg.attachedSpine = leg.joints[0].parent;
 
                     Vector3 restRoot = leg.joints[0].position;
                     Vector3 restTip = leg.joints[leg.joints.Length - 1].position;
                     Vector3 restDir = (restTip - restRoot).normalized;
-                    Vector3 idealRest = restRoot + restDir * (leg.totalLength * 0.8f);
+                    
+                    // Reduced from 0.8f to 0.75f to encourage resting slightly closer to the body (more bend)
+                    Vector3 idealRest = restRoot + restDir * (leg.totalLength * 0.75f);
 
                     if (Physics.Raycast(idealRest + Vector3.up * 5f, Vector3.down, out RaycastHit hit, 10f))
                         idealRest = hit.point;
@@ -145,15 +151,9 @@ public class ProceduralLocomotion : MonoBehaviour
 
         _heading = transform.eulerAngles.y;
 
-        float avgRestY = 0f;
-        int count = 0;
-        foreach (var leg in _legs) {
-            avgRestY += leg.ikTarget.y;
-            count++;
-        }
-        
-        if (count > 0) _bodyHeightOffset = transform.position.y - (avgRestY / count);
-        else _bodyHeightOffset = 2f;
+        // Force the body to hover at 65% of the max leg length to guarantee bent knees/joints
+        _bodyHeightOffset = maxLegLength * 0.65f;
+        if (_bodyHeightOffset < 0.5f) _bodyHeightOffset = 0.5f;
 
         for (int i = 0; i < 300; i++)
         {
@@ -270,12 +270,16 @@ public class ProceduralLocomotion : MonoBehaviour
             bool canStep = !opposingGroupStepping;
             if (err > stepDistance * 1.5f) canStep = true;
 
+            // Dynamically scale step speed based on walk speed to prevent dragging
+            float dynamicStepSpeed = Mathf.Max(stepSpeed, walkSpeed * 2.5f);
+
             if (!leg.isStepping && err > stepDistance && canStep)
             {
                 leg.stepStart = leg.ikTarget;
 
-                Vector3 segmentVelocity = leg.attachedSpine.forward * walkSpeed;
-                Vector3 stepForward = segmentVelocity * (1f / stepSpeed) * 0.8f;
+                // Predict future step end position based on body velocity
+                float stepDuration = 1f / dynamicStepSpeed;
+                Vector3 stepForward = transform.forward * (walkSpeed * stepDuration * 1.5f);
 
                 leg.stepEnd = desiredPos + stepForward;
                 if (Physics.Raycast(leg.stepEnd + Vector3.up * 5f, Vector3.down, out RaycastHit hitEnd, 10f))
@@ -288,7 +292,7 @@ public class ProceduralLocomotion : MonoBehaviour
 
             if (leg.isStepping)
             {
-                leg.stepProgress += Time.deltaTime * stepSpeed;
+                leg.stepProgress += Time.deltaTime * dynamicStepSpeed;
                 if (leg.stepProgress >= 1f) leg.stepProgress = 1f;
 
                 Vector3 currentPos = Vector3.Lerp(leg.stepStart, leg.stepEnd, leg.stepProgress);
@@ -298,22 +302,25 @@ public class ProceduralLocomotion : MonoBehaviour
                 leg.ikTarget = currentPos;
             }
 
-            // Prevent entanglement by clamping the ikTarget direction from the spine root
-            Vector3 rootPos = leg.joints[0].position;
-            Vector3 restDirWorld = leg.attachedSpine.TransformDirection(leg.restingDirLocal);
-            Vector3 currentDir = (leg.ikTarget - rootPos).normalized;
-            float angle = Vector3.Angle(restDirWorld, currentDir);
-            
-            // Increased to 60f to allow for bigger spider strides
-            float maxAngle = 60f;
-            
-            if (angle > maxAngle)
+            // Only apply anti-entanglement clamp if the leg is NOT actively stepping
+            // This allows the step to cleanly complete its motion without artificial walls cutting it short
+            if (!leg.isStepping)
             {
-                Vector3 clampedDir = Vector3.Slerp(restDirWorld, currentDir, maxAngle / angle);
-                float dist = Vector3.Distance(rootPos, leg.ikTarget);
-                Vector3 newTarget = rootPos + clampedDir * dist;
-                newTarget.y = leg.ikTarget.y; // Ensure we keep perfect vertical stepping accuracy
-                leg.ikTarget = newTarget;
+                Vector3 rootPos = leg.joints[0].position;
+                Vector3 restDirWorld = leg.attachedSpine.TransformDirection(leg.restingDirLocal);
+                Vector3 currentDir = (leg.ikTarget - rootPos).normalized;
+                float angle = Vector3.Angle(restDirWorld, currentDir);
+                
+                float maxAngle = 75f; // Generous angle allowance
+                
+                if (angle > maxAngle)
+                {
+                    Vector3 clampedDir = Vector3.Slerp(restDirWorld, currentDir, maxAngle / angle);
+                    float dist = Vector3.Distance(rootPos, leg.ikTarget);
+                    Vector3 newTarget = rootPos + clampedDir * dist;
+                    newTarget.y = leg.ikTarget.y; 
+                    leg.ikTarget = newTarget;
+                }
             }
 
             ApplyFABRIK(leg);

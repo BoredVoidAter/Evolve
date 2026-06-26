@@ -153,9 +153,7 @@ public class Phase1Demo : MonoBehaviour
         return new BodyPlanDNA {
             Symmetry = SymmetryType.Bilateral, SpineSegments = 3, SpineSegmentLength = 1.0f,
             Limbs = new List<LimbDNA> {
-                // Yaw of -20 angles the arms out to the sides slightly so they don't clip the hips
                 new LimbDNA { AttachedSegmentIndex = 0, JointCount = 3, BoneLengths = new float[] { 0.8f, 0.8f, 0.2f }, Pitch = 90, Yaw = -20, Roll = 0, AttachmentSpacing = 1.2f },
-                // Yaw of 0 points the legs perfectly straight forward
                 new LimbDNA { AttachedSegmentIndex = 2, JointCount = 3, BoneLengths = new float[] { 1.2f, 1.2f, 0.4f }, Pitch = 90, Yaw = 0, Roll = 0, AttachmentSpacing = 0.8f }
             }
         };
@@ -166,7 +164,6 @@ public class Phase1Demo : MonoBehaviour
         return new BodyPlanDNA {
             Symmetry = SymmetryType.Bilateral, SpineSegments = 2, SpineSegmentLength = 0.8f,
             Limbs = new List<LimbDNA> {
-                // Negative Yaws angle the left limbs progressively outward/backwards (Right limbs automatically mirror it)
                 new LimbDNA { AttachedSegmentIndex = 0, JointCount = 3, BoneLengths = new float[] { 0.5f, 1.2f, 1f }, Pitch = 20, Yaw = -40,  Roll = 0, AttachmentSpacing = 0.6f },
                 new LimbDNA { AttachedSegmentIndex = 0, JointCount = 3, BoneLengths = new float[] { 0.5f, 1.5f, 1f }, Pitch = 20, Yaw = -80,  Roll = 0, AttachmentSpacing = 0.6f },
                 new LimbDNA { AttachedSegmentIndex = 1, JointCount = 3, BoneLengths = new float[] { 0.5f, 1.5f, 1f }, Pitch = 20, Yaw = -100, Roll = 0, AttachmentSpacing = 0.6f },
@@ -178,7 +175,6 @@ public class Phase1Demo : MonoBehaviour
     private BodyPlanDNA GetCentipedeDNA()
     {
         var limbs = new List<LimbDNA>();
-        // -90 Yaw sweeps all centipede legs out perfectly sideways
         for (int i = 0; i < 15; i++) 
             limbs.Add(new LimbDNA { AttachedSegmentIndex = i, JointCount = 2, BoneLengths = new float[] { 0.4f, 0.6f }, Pitch = 45, Yaw = -90, Roll = 0, AttachmentSpacing = 0.5f });
             
