@@ -303,7 +303,9 @@ public class ProceduralLocomotion : MonoBehaviour
             Vector3 restDirWorld = leg.attachedSpine.TransformDirection(leg.restingDirLocal);
             Vector3 currentDir = (leg.ikTarget - rootPos).normalized;
             float angle = Vector3.Angle(restDirWorld, currentDir);
-            float maxAngle = 45f;
+            
+            // Increased to 60f to allow for bigger spider strides
+            float maxAngle = 60f;
             
             if (angle > maxAngle)
             {
