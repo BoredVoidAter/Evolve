@@ -6,7 +6,7 @@ public class ProceduralLocomotion : MonoBehaviour
     [Header("Movement")]
     public float walkSpeed = 1.5f;
     public float turnSpeed = 25.0f;
-    
+
     [Header("Stepping")]
     public float stepDistance = 0.5f;
     public float stepHeight = 0.4f;
@@ -30,12 +30,17 @@ public class ProceduralLocomotion : MonoBehaviour
         public Vector3 restingPositionLocal;
         public bool isStepping => stepProgress < 1f;
         public Transform attachedSpine;
+        public Vector3 localBendDir;
+        public int gaitGroup;
     }
 
     private List<SpineSegment> _spine = new List<SpineSegment>();
     private List<Leg> _legs = new List<Leg>();
     private List<Vector3> _pathPositions = new List<Vector3>();
     private List<Quaternion> _pathRotations = new List<Quaternion>();
+
+    private float _bodyHeightOffset;
+    private float _heading;
 
     public void InitializeLocomotion()
     {
@@ -49,7 +54,6 @@ public class ProceduralLocomotion : MonoBehaviour
         {
             SpineSegment seg = new SpineSegment { transform = currentSpine, length = 0f };
             Transform nextSpine = null;
-            
             foreach (Transform child in currentSpine)
             {
                 if (child.name.StartsWith("Spine_"))
@@ -61,7 +65,7 @@ public class ProceduralLocomotion : MonoBehaviour
             }
             if (nextSpine == null && currentSpine.childCount > 0)
                 seg.length = 0.5f;
-                
+            
             _spine.Add(seg);
             currentSpine = nextSpine;
         }
@@ -69,13 +73,10 @@ public class ProceduralLocomotion : MonoBehaviour
         Transform[] allTransforms = GetComponentsInChildren<Transform>();
         foreach (Transform t in allTransforms)
         {
-            // FIX: Instead of searching for childCount == 0 (which failed due to InfoLabels), 
-            // we look explicitly for our new "_Tip" dummy transforms that act as real end-effectors.
             if (t.name.EndsWith("_Tip"))
             {
                 List<Transform> chain = new List<Transform>();
                 Transform curr = t;
-                
                 while (curr != null && curr != transform && !curr.name.Contains("Spine_"))
                 {
                     if (curr.name != "InfoLabel") chain.Add(curr);
@@ -99,25 +100,56 @@ public class ProceduralLocomotion : MonoBehaviour
                         leg.totalLength += dist;
                     }
                     
+                    // Assign the specific spine segment this leg is attached to
                     leg.attachedSpine = leg.joints[0].parent;
-                    Vector3 endPos = leg.joints[leg.joints.Length - 1].position;
+                    Vector3 restRoot = leg.joints[0].position;
+                    Vector3 restTip = leg.joints[leg.joints.Length - 1].position;
+                    Vector3 restDir = (restTip - restRoot).normalized;
+                    Vector3 idealRest = restRoot + restDir * (leg.totalLength * 0.8f);
                     
-                    if (Physics.Raycast(endPos + Vector3.up * 5f, Vector3.down, out RaycastHit hit, 10f))
-                        leg.ikTarget = hit.point;
+                    if (Physics.Raycast(idealRest + Vector3.up * 5f, Vector3.down, out RaycastHit hit, 10f))
+                        idealRest = hit.point;
                     else
-                        leg.ikTarget = new Vector3(endPos.x, 0f, endPos.z);
+                        idealRest.y = 0f;
                         
-                    leg.stepStart = leg.ikTarget;
-                    leg.stepEnd = leg.ikTarget;
+                    leg.ikTarget = idealRest;
+                    leg.stepStart = idealRest;
+                    leg.stepEnd = idealRest;
                     leg.stepProgress = 1f;
-                    leg.restingPositionLocal = leg.attachedSpine.InverseTransformPoint(leg.ikTarget);
+                    
+                    // FIX: Save rest position and bend relative to the ATTACHED SPINE, not the head.
+                    leg.restingPositionLocal = leg.attachedSpine.InverseTransformPoint(idealRest);
+                    Vector3 limbDirLocal = leg.attachedSpine.InverseTransformDirection(restDir);
+                    
+                    if (limbDirLocal.y < -0.5f) {
+                        leg.localBendDir = Vector3.forward;
+                    } else if (limbDirLocal.y > 0.5f) {
+                        leg.localBendDir = Vector3.down;
+                    } else {
+                        leg.localBendDir = Vector3.up;
+                    }
                     
                     _legs.Add(leg);
                 }
             }
         }
 
-        for (int i = 0; i < 50; i++)
+        for (int i = 0; i < _legs.Count; i++)
+        {
+            _legs[i].gaitGroup = (i + (i / 2)) % 2;
+        }
+
+        _heading = transform.eulerAngles.y;
+        float avgRestY = 0f;
+        int count = 0;
+        foreach (var leg in _legs) {
+            avgRestY += leg.ikTarget.y;
+            count++;
+        }
+        if (count > 0) _bodyHeightOffset = transform.position.y - (avgRestY / count);
+        else _bodyHeightOffset = 2f;
+
+        for (int i = 0; i < 300; i++)
         {
             _pathPositions.Add(transform.position - transform.forward * (i * 0.1f));
             _pathRotations.Add(transform.rotation);
@@ -128,71 +160,118 @@ public class ProceduralLocomotion : MonoBehaviour
     {
         if (_spine.Count == 0) return;
 
-        transform.Translate(Vector3.forward * walkSpeed * Time.deltaTime);
-        transform.Rotate(0, turnSpeed * Time.deltaTime, 0);
+        // 1. Move root with heading and follow terrain inclination
+        _heading += turnSpeed * Time.deltaTime;
+        Quaternion headingRot = Quaternion.Euler(0, _heading, 0);
+
+        Vector3 velocity = headingRot * Vector3.forward * walkSpeed;
+        Vector3 nextPos = transform.position + velocity * Time.deltaTime;
+
+        Vector3 groundNormal = Vector3.up;
+        float groundY = 0f;
+        if (Physics.Raycast(nextPos + Vector3.up * 5f, Vector3.down, out RaycastHit hit, 10f))
+        {
+            groundNormal = hit.normal;
+            groundY = hit.point.y;
+        }
+
+        Vector3 targetPos = nextPos;
+        targetPos.y = Mathf.Lerp(transform.position.y, groundY + _bodyHeightOffset, Time.deltaTime * 5f);
+        transform.position = targetPos;
+
+        Quaternion targetRot = Quaternion.FromToRotation(Vector3.up, groundNormal) * headingRot;
+        transform.rotation = Quaternion.Slerp(transform.rotation, targetRot, Time.deltaTime * 5f);
 
         float distSinceLast = Vector3.Distance(transform.position, _pathPositions[0]);
         if (distSinceLast > 0.05f)
         {
             _pathPositions.Insert(0, transform.position);
             _pathRotations.Insert(0, transform.rotation);
-            if (_pathPositions.Count > 200)
+            if (_pathPositions.Count > 300)
             {
                 _pathPositions.RemoveAt(_pathPositions.Count - 1);
                 _pathRotations.RemoveAt(_pathRotations.Count - 1);
             }
         }
 
-        float wiggle = Mathf.Sin(Time.time * 4f) * 12f;
-        float totalDist = 0f;
+        _spine[0].transform.position = transform.position;
+        _spine[0].transform.rotation = transform.rotation;
 
+        // 2. Spine alignment
+        float totalDist = 0f;
         for (int i = 1; i < _spine.Count; i++)
         {
             totalDist += _spine[i - 1].length;
             float d = 0f;
+            Vector3 spineTargetPos = _spine[i].transform.position;
+            Quaternion spineTargetRot = _spine[i].transform.rotation;
+            
             for (int p = 0; p < _pathPositions.Count - 1; p++)
             {
                 float segDist = Vector3.Distance(_pathPositions[p], _pathPositions[p + 1]);
                 if (d + segDist >= totalDist)
                 {
                     float t = (totalDist - d) / segDist;
-                    Vector3 targetPos = Vector3.Lerp(_pathPositions[p], _pathPositions[p + 1], t);
-                    Quaternion targetRot = Quaternion.Slerp(_pathRotations[p], _pathRotations[p + 1], t);
-                    targetRot *= Quaternion.Euler(0, wiggle * (i % 2 == 0 ? 1 : -1), 0);
-                    _spine[i].transform.position = targetPos;
-                    _spine[i].transform.rotation = targetRot;
+                    spineTargetPos = Vector3.Lerp(_pathPositions[p], _pathPositions[p + 1], t);
+                    spineTargetRot = Quaternion.Slerp(_pathRotations[p], _pathRotations[p + 1], t);
                     break;
                 }
                 d += segDist;
             }
+            float wiggleAmount = Mathf.Sin(Time.time * 6f - i * 0.8f) * 0.15f;
+            spineTargetPos += spineTargetRot * Vector3.right * wiggleAmount;
+            
+            _spine[i].transform.position = spineTargetPos;
+            
+            Vector3 dirToPrev = (_spine[i - 1].transform.position - _spine[i].transform.position).normalized;
+            if (dirToPrev != Vector3.zero)
+            {
+                _spine[i].transform.rotation = Quaternion.LookRotation(dirToPrev, spineTargetRot * Vector3.up);
+            }
         }
 
-        int steppingCount = 0;
-        foreach (var leg in _legs) if (leg.isStepping) steppingCount++;
-        int maxStepping = Mathf.Max(1, _legs.Count / 3);
-
+        // 3. Legs stepping logic
         for (int i = 0; i < _legs.Count; i++)
         {
             Leg leg = _legs[i];
+            
+            // FIX: Retrieve desired rest pos relative to the attached spine, not the global transform
             Vector3 desiredPos = leg.attachedSpine.TransformPoint(leg.restingPositionLocal);
             
-            if (Physics.Raycast(desiredPos + Vector3.up * 5f, Vector3.down, out RaycastHit hit, 10f))
-                desiredPos = hit.point;
+            if (Physics.Raycast(desiredPos + Vector3.up * 5f, Vector3.down, out RaycastHit hitLeg, 10f))
+                desiredPos = hitLeg.point;
             else
-                desiredPos.y = 0f;
-                
-            float err = Vector3.Distance(leg.ikTarget, desiredPos);
-            bool canStepNow = true;
+                desiredPos.y = groundY;
+
+            float err = Vector2.Distance(new Vector2(leg.ikTarget.x, leg.ikTarget.z), new Vector2(desiredPos.x, desiredPos.z));
+            bool opposingGroupStepping = false;
+            foreach (var l in _legs)
+            {
+                if (l.gaitGroup != leg.gaitGroup && l.isStepping)
+                {
+                    opposingGroupStepping = true;
+                    break;
+                }
+            }
             
-            if (i > 0 && _legs[i-1].isStepping) canStepNow = false;
-            if (i < _legs.Count - 1 && _legs[i+1].isStepping) canStepNow = false;
+            bool canStep = !opposingGroupStepping;
+            if (err > stepDistance * 1.5f) canStep = true;
             
-            if (!leg.isStepping && err > stepDistance && steppingCount < maxStepping && canStepNow)
+            if (!leg.isStepping && err > stepDistance && canStep)
             {
                 leg.stepStart = leg.ikTarget;
-                leg.stepEnd = desiredPos + (transform.forward * walkSpeed * 0.35f);
+                
+                // FIX: Lead the target using the spine segment's specific forward trajectory so centipede tails don't step sideways during turns
+                Vector3 segmentVelocity = leg.attachedSpine.forward * walkSpeed;
+                Vector3 stepForward = segmentVelocity * (1f / stepSpeed) * 0.8f;
+                leg.stepEnd = desiredPos + stepForward;
+                
+                if (Physics.Raycast(leg.stepEnd + Vector3.up * 5f, Vector3.down, out RaycastHit hitEnd, 10f))
+                    leg.stepEnd = hitEnd.point;
+                else
+                    leg.stepEnd.y = groundY;
+                    
                 leg.stepProgress = 0f;
-                steppingCount++;
             }
 
             if (leg.isStepping)
@@ -201,9 +280,13 @@ public class ProceduralLocomotion : MonoBehaviour
                 if (leg.stepProgress >= 1f) leg.stepProgress = 1f;
                 
                 Vector3 currentPos = Vector3.Lerp(leg.stepStart, leg.stepEnd, leg.stepProgress);
-                currentPos.y += Mathf.Sin(leg.stepProgress * Mathf.PI) * stepHeight;
+                
+                float p = leg.stepProgress;
+                currentPos.y += 4f * stepHeight * p * (1f - p);
+                
                 leg.ikTarget = currentPos;
             }
+            
             ApplyFABRIK(leg);
         }
     }
@@ -216,18 +299,33 @@ public class ProceduralLocomotion : MonoBehaviour
         
         Vector3 rootPos = positions[0];
         Vector3 targetPos = leg.ikTarget;
+        
+        if (Vector3.Distance(rootPos, targetPos) < 0.01f) return;
+        
+        // FIX: Extract planar bias relative to the individual spine section
+        Vector3 worldBendDir = leg.attachedSpine.TransformDirection(leg.localBendDir);
+        Vector3 rootToTarget = (targetPos - rootPos).normalized;
+        Vector3 planeNormal = Vector3.Cross(rootToTarget, worldBendDir).normalized;
+        
+        if (planeNormal.sqrMagnitude < 0.01f) planeNormal = leg.attachedSpine.right;
 
         if (Vector3.Distance(rootPos, targetPos) > leg.totalLength * 0.99f)
         {
-            Vector3 dir = (targetPos - rootPos).normalized;
+            Vector3 dir = rootToTarget;
             for (int i = 1; i < numJoints; i++)
                 positions[i] = positions[i - 1] + dir * leg.lengths[i - 1];
         }
         else
         {
+            for (int i = 1; i < numJoints - 1; i++) {
+                Vector3 offset = positions[i] - rootPos;
+                offset = Vector3.ProjectOnPlane(offset, planeNormal);
+                offset += worldBendDir * 0.1f;
+                positions[i] = rootPos + offset;
+            }
+
             for (int iter = 0; iter < 10; iter++)
             {
-                // Backward
                 positions[numJoints - 1] = targetPos;
                 for (int i = numJoints - 2; i >= 0; i--)
                 {
@@ -235,32 +333,36 @@ public class ProceduralLocomotion : MonoBehaviour
                     positions[i] = positions[i + 1] + dir * leg.lengths[i];
                 }
                 
-                // Forward
                 positions[0] = rootPos;
                 for (int i = 1; i < numJoints; i++)
                 {
                     Vector3 dir = (positions[i] - positions[i - 1]).normalized;
                     positions[i] = positions[i - 1] + dir * leg.lengths[i - 1];
                 }
-                
+
+                for (int i = 1; i < numJoints - 1; i++)
+                {
+                    Vector3 offset = positions[i] - rootPos;
+                    offset = Vector3.ProjectOnPlane(offset, planeNormal);
+                    positions[i] = rootPos + offset;
+                }
+
                 if (Vector3.Distance(positions[numJoints - 1], targetPos) < 0.01f)
                     break;
             }
         }
-
+        
         for (int i = 0; i < numJoints - 1; i++)
         {
             Vector3 dir = (positions[i + 1] - positions[i]).normalized;
-            leg.joints[i].position = positions[i];
+            Vector3 boneUp = Vector3.Cross(dir, planeNormal).normalized;
+            if (Vector3.Dot(boneUp, worldBendDir) < 0) boneUp = -boneUp;
             
-            Vector3 upHint = Vector3.up;
-            if (leg.attachedSpine != null)
+            if (dir != Vector3.zero && boneUp != Vector3.zero)
             {
-                Vector3 awayFromBody = (positions[i] - leg.attachedSpine.position).normalized;
-                awayFromBody.y = 0;
-                upHint = (Vector3.up + awayFromBody * 0.5f).normalized;
+                leg.joints[i].rotation = Quaternion.LookRotation(dir, boneUp);
             }
-            leg.joints[i].rotation = Quaternion.LookRotation(dir, upHint);
+            leg.joints[i].position = positions[i];
         }
         leg.joints[numJoints - 1].position = positions[numJoints - 1];
     }
