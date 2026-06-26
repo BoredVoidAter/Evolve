@@ -8,9 +8,18 @@ public enum SymmetryType
     Asymmetrical
 }
 
+public enum LimbType
+{
+    Leg,
+    Manipulator,
+    Horn,
+    Tentacle
+}
+
 [System.Serializable]
 public struct LimbDNA
 {
+    public LimbType Type;
     public int AttachedSegmentIndex;
     public int JointCount;
     public float[] BoneLengths;
@@ -32,7 +41,58 @@ public struct BodyPlanDNA
 }
 
 [System.Serializable]
+public struct MorphogenesisDNA 
+{ 
+    public float GlobalGrowthRate;
+    public float MaturityAge;
+}
+
+[System.Serializable]
+public struct TissueDNA 
+{
+    public float MuscleMass;
+    public float FatMass;
+    public float ArmorMass;
+}
+
+[System.Serializable]
+public struct SurfaceFeatureDNA { }
+
+[System.Serializable]
+public struct MembraneDNA 
+{
+    public float WebbingAmount;
+    public float Elasticity;
+    public float Thickness;
+}
+
+[System.Serializable]
+public struct OrganDNA 
+{
+    public string PrefabID;
+    public int AttachedSegmentIndex;
+}
+
+[System.Serializable]
+public struct SkinDNA 
+{
+    public Texture2D PatternMask;
+    public Color PrimaryColor;
+    public Color SecondaryColor;
+}
+
+[System.Serializable]
+public struct BrainDNA { }
+
+[System.Serializable]
 public struct AnimalDNA
 {
     public BodyPlanDNA BodyPlan;
+    public MorphogenesisDNA Morphogenesis;
+    public TissueDNA Tissue;
+    public SurfaceFeatureDNA Features;
+    public MembraneDNA Membranes;
+    public List<OrganDNA> Organs;
+    public SkinDNA Skin;
+    public BrainDNA Brain;
 }

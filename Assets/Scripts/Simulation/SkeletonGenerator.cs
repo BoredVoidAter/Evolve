@@ -1,9 +1,21 @@
 using System.Collections.Generic;
 using UnityEngine;
 
+// Headless Simulation Layer Data (Strictly math/physics, no GameObjects)
+public class SimCreatureState
+{
+    public Vector3 Position;
+    public Vector3 Velocity;
+    public float Mass;
+    public Vector3 CenterOfMass;
+    public float BoundingRadius;
+    public SimBone RootBone;
+}
+
 public class SimBone
 {
     public string Name;
+    public LimbType Type;
     public Vector3 LocalPosition;
     public Quaternion LocalRotation;
     public float Length;
@@ -19,50 +31,50 @@ public static class SkeletonGenerator
         SimBone root = new SimBone
         {
             Name = "Spine_0 (Root)",
+            Type = LimbType.Leg, // Spine is structurally treated as core support
             LocalPosition = Vector3.zero,
             LocalRotation = Quaternion.identity,
             Length = dna.SpineSegmentLength
         };
-
+        
         List<SimBone> spineBones = new List<SimBone> { root };
         SimBone currentSpine = root;
-
+        
         for (int i = 1; i < dna.SpineSegments; i++)
         {
             SimBone nextSpine = new SimBone
             {
                 Name = $"Spine_{i}",
+                Type = LimbType.Leg,
                 LocalPosition = new Vector3(0, 0, currentSpine.Length),
                 LocalRotation = Quaternion.identity,
                 Length = dna.SpineSegmentLength
             };
-
+            
             currentSpine.Children.Add(nextSpine);
             nextSpine.Parent = currentSpine;
             spineBones.Add(nextSpine);
-
             currentSpine = nextSpine;
         }
-
+        
         if (dna.Limbs != null)
         {
             foreach (var limbDna in dna.Limbs)
             {
                 int segmentIndex = Mathf.Clamp(limbDna.AttachedSegmentIndex, 0, spineBones.Count - 1);
                 SimBone attachBone = spineBones[segmentIndex];
-
+                
                 switch (dna.Symmetry)
                 {
                     case SymmetryType.Bilateral:
-                        GenerateLimbBranch(limbDna, attachBone, "L_Limb", 
-                            Quaternion.Euler(limbDna.Pitch, limbDna.Yaw, limbDna.Roll), 
+                        GenerateLimbBranch(limbDna, attachBone, "L_Limb",
+                            Quaternion.Euler(limbDna.Pitch, limbDna.Yaw, limbDna.Roll),
                             new Vector3(-limbDna.AttachmentSpacing * 0.5f, 0, 0));
-                            
-                        GenerateLimbBranch(limbDna, attachBone, "R_Limb", 
-                            Quaternion.Euler(limbDna.Pitch, -limbDna.Yaw, -limbDna.Roll), 
+                        GenerateLimbBranch(limbDna, attachBone, "R_Limb",
+                            Quaternion.Euler(limbDna.Pitch, -limbDna.Yaw, -limbDna.Roll),
                             new Vector3(limbDna.AttachmentSpacing * 0.5f, 0, 0));
                         break;
-
+                        
                     case SymmetryType.Radial:
                         for (int r = 0; r < dna.RadialCount; r++)
                         {
@@ -73,48 +85,47 @@ public static class SkeletonGenerator
                             GenerateLimbBranch(limbDna, attachBone, $"Radial_{r}", finalRot, offset);
                         }
                         break;
-
+                        
                     case SymmetryType.Asymmetrical:
-                        GenerateLimbBranch(limbDna, attachBone, "Limb", 
-                            Quaternion.Euler(limbDna.Pitch, limbDna.Yaw, limbDna.Roll), 
+                        GenerateLimbBranch(limbDna, attachBone, "Limb",
+                            Quaternion.Euler(limbDna.Pitch, limbDna.Yaw, limbDna.Roll),
                             Vector3.zero);
                         break;
                 }
             }
         }
-
         return root;
     }
-
+    
     private static void GenerateLimbBranch(LimbDNA limbDna, SimBone parentBone, string prefix, Quaternion rootRot, Vector3 rootOffset)
     {
         SimBone currentParent = parentBone;
-
         for (int i = 0; i < limbDna.JointCount; i++)
         {
             float len = (limbDna.BoneLengths != null && i < limbDna.BoneLengths.Length) ? limbDna.BoneLengths[i] : 1.0f;
             Quaternion localRot = Quaternion.identity;
             Vector3 localPos = new Vector3(0, 0, currentParent.Length);
-
+            
             if (i == 0)
             {
                 localRot = rootRot;
                 localPos = rootOffset;
             }
-
+            
             SimBone joint = new SimBone
             {
                 Name = $"{prefix}_J{i}",
+                Type = limbDna.Type, // Map the explicit classification
                 LocalPosition = localPos,
                 LocalRotation = localRot,
                 Length = len
             };
-
+            
             currentParent.Children.Add(joint);
             joint.Parent = currentParent;
             currentParent = joint;
         }
-
+        
         if (limbDna.ChildLimbs != null)
         {
             foreach (var childLimb in limbDna.ChildLimbs)
