@@ -319,7 +319,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ProceduralLocomotion
   walkSpeed: 2
-  turnSpeed: 45
+  turnSpeed: 20
   stepDistance: 0.5
   stepHeight: 0.4
   stepSpeed: 5

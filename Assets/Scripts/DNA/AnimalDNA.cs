@@ -14,12 +14,10 @@ public struct LimbDNA
     public int AttachedSegmentIndex;
     public int JointCount;
     public float[] BoneLengths;
-    
-    // Orientation relative to the parent bone
     public float Pitch;
     public float Yaw;
     public float Roll;
-
+    public float AttachmentSpacing;
     public List<LimbDNA> ChildLimbs;
 }
 
@@ -37,13 +35,4 @@ public struct BodyPlanDNA
 public struct AnimalDNA
 {
     public BodyPlanDNA BodyPlan;
-    
-    // Phase 2+ Stubs
-    // public MorphogenesisDNA Morphogenesis;
-    // public TissueDNA Tissue;
-    // public SurfaceFeatureDNA Features;
-    // public MembraneDNA Membranes;
-    // public List<OrganDNA> Organs;
-    // public SkinDNA Skin;
-    // public BrainDNA Brain;
 }
