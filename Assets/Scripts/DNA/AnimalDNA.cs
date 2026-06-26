@@ -1,3 +1,4 @@
+// Assets/Scripts/DNA/AnimalDNA.cs
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -37,18 +38,23 @@ public struct BodyPlanDNA
     public int RadialCount;
     public int SpineSegments;
     public float SpineSegmentLength;
+    
+    // NEW: Determines how upright the creature stands and how rigid the spine is
+    public float PosturePitch; 
+    public float SpineStiffness;
+
     public List<LimbDNA> Limbs;
 }
 
 [System.Serializable]
-public struct MorphogenesisDNA 
-{ 
+public struct MorphogenesisDNA
+{
     public float GlobalGrowthRate;
     public float MaturityAge;
 }
 
 [System.Serializable]
-public struct TissueDNA 
+public struct TissueDNA
 {
     public float MuscleMass;
     public float FatMass;
@@ -59,7 +65,7 @@ public struct TissueDNA
 public struct SurfaceFeatureDNA { }
 
 [System.Serializable]
-public struct MembraneDNA 
+public struct MembraneDNA
 {
     public float WebbingAmount;
     public float Elasticity;
@@ -67,14 +73,14 @@ public struct MembraneDNA
 }
 
 [System.Serializable]
-public struct OrganDNA 
+public struct OrganDNA
 {
     public string PrefabID;
     public int AttachedSegmentIndex;
 }
 
 [System.Serializable]
-public struct SkinDNA 
+public struct SkinDNA
 {
     public Texture2D PatternMask;
     public Color PrimaryColor;
