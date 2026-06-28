@@ -1,3 +1,4 @@
+// Assets/Scripts/Simulation/SkeletonGenerator.cs
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -58,9 +59,26 @@ public static class SkeletonGenerator
     {
         float totalBoneLength = CalculateTotalBoneLength(state.RootBone);
         state.Mass = totalBoneLength * 8f;
+
+        List<Vector3> allPoints = new List<Vector3>();
+        ComputeModelSpace(state.RootBone, Vector3.zero, Quaternion.identity, allPoints);
+
+        Vector3 com = Vector3.zero;
+        foreach (var pt in allPoints) com += pt;
+        if (allPoints.Count > 0) com /= allPoints.Count;
+
+        state.CenterOfMass = com;
+
+        float maxDistSq = 0f;
+        foreach (var pt in allPoints)
+        {
+            float distSq = (pt - com).sqrMagnitude;
+            if (distSq > maxDistSq) maxDistSq = distSq;
+        }
+        state.BoundingRadius = Mathf.Sqrt(maxDistSq);
+
         List<SimBone> legs = new List<SimBone>();
         FindEndEffectorsOfType(state.RootBone, LimbType.Leg, legs);
-        
         float maxLegLength = 0.1f;
         float avgLegLength = 0.1f;
         if (legs.Count > 0)
@@ -75,18 +93,16 @@ public static class SkeletonGenerator
             avgLegLength = sum / legs.Count;
         }
 
-        // Reduced step distance/height to match new speed expectations
         state.StepDistance = avgLegLength * 1.0f;
         state.StepHeight = avgLegLength * 0.25f;
 
-        // Scale by body length and number of legs
         float bodyLength = (dna.SpineSegments * dna.SpineSegmentLength) + (dna.TailSegments * dna.TailSegmentLength);
         if (bodyLength < 0.1f) bodyLength = 0.1f;
 
         float baseSpeed = (avgLegLength * 1.0f) + (bodyLength * 0.2f);
         float legCountMultiplier = 1f + (legs.Count * 0.05f);
-        
         state.WalkSpeed = Mathf.Max(0.5f, baseSpeed * legCountMultiplier * 0.6f);
+
         state.TurnSpeed = 60f / (1f + bodyLength);
 
         float postureCost = 0f;
@@ -103,8 +119,22 @@ public static class SkeletonGenerator
             float uprightPenalty = dna.PosturePitch / 90f;
             postureCost = uprightPenalty * 20f;
         }
-        
         state.EnergyCost = (state.Mass * 0.2f) + (state.WalkSpeed * 2f) + postureCost;
+    }
+
+    private static void ComputeModelSpace(SimBone bone, Vector3 parentPos, Quaternion parentRot, List<Vector3> allPoints)
+    {
+        Vector3 boneStart = parentPos + parentRot * bone.LocalPosition;
+        Quaternion boneRot = parentRot * bone.LocalRotation;
+        Vector3 boneEnd = boneStart + boneRot * (Vector3.forward * bone.Length);
+
+        allPoints.Add(boneStart);
+        allPoints.Add(boneEnd);
+
+        foreach (var child in bone.Children)
+        {
+            ComputeModelSpace(child, boneStart, boneRot, allPoints);
+        }
     }
 
     private static float CalculateTotalBoneLength(SimBone bone)
@@ -184,19 +214,17 @@ public static class SkeletonGenerator
             {
                 int segmentIndex = Mathf.Clamp(limbDna.AttachedSegmentIndex, 0, spineBones.Count - 1);
                 SimBone attachBone = spineBones[segmentIndex];
-                
+
                 switch (dna.Symmetry)
                 {
                     case SymmetryType.Bilateral:
                         GenerateLimbBranch(limbDna, attachBone, "L_Limb",
                             Quaternion.Euler(limbDna.Pitch, limbDna.Yaw, limbDna.Roll),
                             new Vector3(-limbDna.AttachmentSpacing * 0.5f, 0, 0));
-                        
                         GenerateLimbBranch(limbDna, attachBone, "R_Limb",
                             Quaternion.Euler(limbDna.Pitch, -limbDna.Yaw, -limbDna.Roll),
                             new Vector3(limbDna.AttachmentSpacing * 0.5f, 0, 0));
                         break;
-                        
                     case SymmetryType.Radial:
                         for (int r = 0; r < dna.RadialCount; r++)
                         {
@@ -207,7 +235,6 @@ public static class SkeletonGenerator
                             GenerateLimbBranch(limbDna, attachBone, $"Radial_{r}", finalRot, offset);
                         }
                         break;
-                        
                     case SymmetryType.Asymmetrical:
                         GenerateLimbBranch(limbDna, attachBone, "Limb",
                             Quaternion.Euler(limbDna.Pitch, limbDna.Yaw, limbDna.Roll),
@@ -216,6 +243,7 @@ public static class SkeletonGenerator
                 }
             }
         }
+
         return root;
     }
 
@@ -225,15 +253,16 @@ public static class SkeletonGenerator
         for (int i = 0; i < limbDna.JointCount; i++)
         {
             float len = (limbDna.BoneLengths != null && i < limbDna.BoneLengths.Length) ? limbDna.BoneLengths[i] : 1.0f;
+
             Quaternion localRot = Quaternion.identity;
             Vector3 localPos = new Vector3(0, 0, currentParent.Length);
-            
+
             if (i == 0)
             {
                 localRot = rootRot;
                 localPos = rootOffset;
             }
-            
+
             SimBone joint = new SimBone
             {
                 Name = $"{prefix}_J{i}",
@@ -242,7 +271,7 @@ public static class SkeletonGenerator
                 LocalRotation = localRot,
                 Length = len
             };
-            
+
             currentParent.Children.Add(joint);
             joint.Parent = currentParent;
             currentParent = joint;
