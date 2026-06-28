@@ -756,8 +756,8 @@
     "m_ObjectId": "1b8dbc2e562245aaa4170e4ca3831051",
     "m_Title": "Texture",
     "m_Position": {
-        "x": -827.0,
-        "y": -174.00003051757813
+        "x": -826.9998779296875,
+        "y": -173.99998474121095
     }
 }
 
@@ -824,7 +824,7 @@
     "m_ObjectId": "222396658455473085b5a750433e69f5",
     "m_Title": "Lighting",
     "m_Position": {
-        "x": -1168.0,
+        "x": -1167.9998779296875,
         "y": -738.0
     }
 }
@@ -2285,7 +2285,7 @@
     "m_ZTestMode": 4,
     "m_ZWriteControl": 0,
     "m_AlphaMode": 0,
-    "m_RenderFace": 2,
+    "m_RenderFace": 0,
     "m_AlphaClip": false,
     "m_CastShadows": true,
     "m_ReceiveShadows": true,

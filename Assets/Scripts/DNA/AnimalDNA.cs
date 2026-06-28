@@ -14,7 +14,8 @@ public enum LimbType
     Manipulator,
     Horn,
     Tentacle,
-    Tail
+    Tail,
+    Head
 }
 
 [System.Serializable]
