@@ -1,4 +1,3 @@
-// Assets/Scripts/Phase1Demo.cs
 using UnityEngine;
 using UnityEngine.UIElements;
 using System.Collections.Generic;
@@ -14,12 +13,14 @@ public class Phase1Demo : MonoBehaviour
     public CreatureType currentCreature = CreatureType.Biped;
     public StyleSheet customStyleSheet;
     public Material floorMaterial;
-    
+
     private SkeletonVisualizer _visualizer;
     private ProceduralLocomotion _locomotion;
+    private SimCreatureState _simState;
     private GameObject _demoFloor;
     private UIDocument _uiDocument;
     private Camera _demoCamera;
+    private Label _statsLabel;
 
     void Start()
     {
@@ -42,6 +43,22 @@ public class Phase1Demo : MonoBehaviour
         GenerateCreature();
     }
 
+    private void Update()
+    {
+        if (_simState != null)
+        {
+            _simState.UpdateSimulation(Time.deltaTime);
+
+            if (_statsLabel != null)
+            {
+                _statsLabel.text = $"MASS: {_simState.Mass:F1} kg\n" +
+                                   $"SPEED: {_simState.WalkSpeed:F2} m/s\n" +
+                                   $"STRIDE: {_simState.StepDistance:F2} m\n" +
+                                   $"ENERGY COST: {_simState.EnergyCost:F1}/m";
+            }
+        }
+    }
+
     private void LateUpdate()
     {
         if (_demoCamera != null && _demoCamera.gameObject.activeInHierarchy)
@@ -56,37 +73,46 @@ public class Phase1Demo : MonoBehaviour
     {
         var root = _uiDocument.rootVisualElement;
         root.Clear();
-        
-        if (customStyleSheet != null)
-            root.styleSheets.Add(customStyleSheet);
-            
+        if (customStyleSheet != null) root.styleSheets.Add(customStyleSheet);
+
         VisualElement panel = new VisualElement();
         panel.AddToClassList("content-panel");
         panel.style.position = Position.Absolute;
         panel.style.top = 20;
         panel.style.left = 20;
-        panel.style.width = 300;
+        panel.style.width = 320;
         panel.style.paddingTop = 20;
         panel.style.paddingBottom = 20;
         panel.style.paddingLeft = 20;
         panel.style.paddingRight = 20;
-        
+
         Label title = new Label("PHASE 1");
         title.AddToClassList("panel-header");
         title.style.fontSize = 28;
         panel.Add(title);
-        
+
         VisualElement divider = new VisualElement();
         divider.AddToClassList("section-divider");
         panel.Add(divider);
-        
-        panel.Add(CreateButton("BIPED", CreatureType.Biped));
+
+        panel.Add(CreateButton("BIPED (T-REX)", CreatureType.Biped));
         panel.Add(CreateButton("APE", CreatureType.Ape));
         panel.Add(CreateButton("SPIDER", CreatureType.Spider));
         panel.Add(CreateButton("CENTIPEDE", CreatureType.Centipede));
         panel.Add(CreateButton("STARFISH", CreatureType.Starfish));
         panel.Add(CreateButton("TENTACLE ALIEN", CreatureType.TentacleAlien));
-        
+
+        VisualElement divider2 = new VisualElement();
+        divider2.AddToClassList("section-divider");
+        divider2.style.marginTop = 20;
+        panel.Add(divider2);
+
+        _statsLabel = new Label("STATS...");
+        _statsLabel.style.color = new Color(0.18f, 0.82f, 0.9f);
+        _statsLabel.style.fontSize = 20;
+        _statsLabel.style.marginTop = 10;
+        panel.Add(_statsLabel);
+
         root.Add(panel);
     }
 
@@ -99,27 +125,23 @@ public class Phase1Demo : MonoBehaviour
         btn.text = text;
         btn.AddToClassList("action-btn");
         btn.style.marginTop = 10;
-        btn.style.fontSize = 20;
+        btn.style.fontSize = 18;
         return btn;
     }
 
     private void CreateFloor()
     {
         if (_demoFloor != null) return;
-        
         _demoFloor = GameObject.CreatePrimitive(PrimitiveType.Plane);
         _demoFloor.name = "EVOLVE_Demo_Floor";
         _demoFloor.transform.SetParent(null);
         _demoFloor.transform.position = new Vector3(0, 0, 0);
         _demoFloor.transform.localScale = new Vector3(50, 1, 50);
-        
+
         Renderer r = _demoFloor.GetComponent<Renderer>();
         if (r != null)
         {
-            if (floorMaterial != null)
-            {
-                r.material = floorMaterial;
-            }
+            if (floorMaterial != null) r.material = floorMaterial;
             else
             {
                 Material floorMat = new Material(Shader.Find("Standard"));
@@ -132,7 +154,6 @@ public class Phase1Demo : MonoBehaviour
     private void GenerateCreature()
     {
         AnimalDNA dna = new AnimalDNA();
-        
         switch (currentCreature)
         {
             case CreatureType.Biped: dna.BodyPlan = GetBipedDNA(); break;
@@ -145,28 +166,30 @@ public class Phase1Demo : MonoBehaviour
 
         transform.position = new Vector3(0, 2f, 0);
         transform.localRotation = Quaternion.identity;
-        
-        // Pass the new posture/stiffness values from DNA to Locomotion
+
         _locomotion.posturePitch = dna.BodyPlan.PosturePitch;
         _locomotion.spineStiffness = dna.BodyPlan.SpineStiffness;
 
-        SimBone rootSkeleton = SkeletonGenerator.GenerateSkeleton(dna.BodyPlan);
-        _visualizer.BuildSkeletonView(rootSkeleton);
-        _locomotion.InitializeLocomotion();
+        _simState = SkeletonGenerator.GenerateCreatureState(dna, transform.position);
+        
+        _visualizer.BuildSkeletonView(_simState.RootBone);
+        _locomotion.InitializeLocomotion(_simState);
     }
 
     #region DNA Presets
-    
+
     private BodyPlanDNA GetBipedDNA()
     {
         return new BodyPlanDNA {
-            Symmetry = SymmetryType.Bilateral, 
-            SpineSegments = 3, 
+            Symmetry = SymmetryType.Bilateral,
+            SpineSegments = 3,
             SpineSegmentLength = 1.0f,
-            PosturePitch = 15f, // Slight upwards lean (T-Rex like)
-            SpineStiffness = 0.4f, 
+            TailSegments = 4, 
+            TailSegmentLength = 0.8f,
+            PosturePitch = 15f,
+            SpineStiffness = 0.4f,
             Limbs = new List<LimbDNA> {
-                new LimbDNA { Type = LimbType.Leg, AttachedSegmentIndex = 2, JointCount = 3, BoneLengths = new float[] { 0.8f, 0.8f, 0.2f }, Pitch = 90, Yaw = -20, Roll = 0, AttachmentSpacing = 1.2f },
+                new LimbDNA { Type = LimbType.Leg, AttachedSegmentIndex = 2, JointCount = 3, BoneLengths = new float[] { 1.2f, 1.2f, 0.4f }, Pitch = 90, Yaw = -20, Roll = 0, AttachmentSpacing = 1.2f },
                 new LimbDNA { Type = LimbType.Manipulator, AttachedSegmentIndex = 0, JointCount = 3, BoneLengths = new float[] { 0.4f, 0.4f, 0.2f }, Pitch = 45, Yaw = 0, Roll = 0, AttachmentSpacing = 0.8f }
             }
         };
@@ -175,15 +198,11 @@ public class Phase1Demo : MonoBehaviour
     private BodyPlanDNA GetApeDNA()
     {
         return new BodyPlanDNA {
-            Symmetry = SymmetryType.Bilateral, 
-            SpineSegments = 3, 
-            SpineSegmentLength = 0.8f,
-            PosturePitch = 45f, // Highly pitched up back
-            SpineStiffness = 0.85f, // Very rigid spine stack
+            Symmetry = SymmetryType.Bilateral,
+            SpineSegments = 3, SpineSegmentLength = 0.8f, TailSegments = 0, TailSegmentLength = 0f,
+            PosturePitch = 45f, SpineStiffness = 0.85f,
             Limbs = new List<LimbDNA> {
-                // Short hind legs at the back
                 new LimbDNA { Type = LimbType.Leg, AttachedSegmentIndex = 2, JointCount = 3, BoneLengths = new float[] { 0.6f, 0.6f, 0.2f }, Pitch = 90, Yaw = -30, Roll = 0, AttachmentSpacing = 1.0f },
-                // Long arms up front used as LEGS (knuckle walking!)
                 new LimbDNA { Type = LimbType.Leg, AttachedSegmentIndex = 0, JointCount = 3, BoneLengths = new float[] { 0.9f, 0.9f, 0.2f }, Pitch = 45, Yaw = -10, Roll = 0, AttachmentSpacing = 1.4f }
             }
         };
@@ -192,7 +211,8 @@ public class Phase1Demo : MonoBehaviour
     private BodyPlanDNA GetSpiderDNA()
     {
         return new BodyPlanDNA {
-            Symmetry = SymmetryType.Bilateral, SpineSegments = 2, SpineSegmentLength = 0.8f,
+            Symmetry = SymmetryType.Bilateral, 
+            SpineSegments = 2, SpineSegmentLength = 0.8f, TailSegments = 0, TailSegmentLength = 0f,
             PosturePitch = 0f, SpineStiffness = 0f,
             Limbs = new List<LimbDNA> {
                 new LimbDNA { Type = LimbType.Leg, AttachedSegmentIndex = 0, JointCount = 3, BoneLengths = new float[] { 0.5f, 1.2f, 1f }, Pitch = 20, Yaw = -40,  Roll = 0, AttachmentSpacing = 0.6f },
@@ -209,13 +229,17 @@ public class Phase1Demo : MonoBehaviour
         for (int i = 0; i < 15; i++)
             limbs.Add(new LimbDNA { Type = LimbType.Leg, AttachedSegmentIndex = i, JointCount = 2, BoneLengths = new float[] { 0.4f, 0.6f }, Pitch = 45, Yaw = -90, Roll = 0, AttachmentSpacing = 0.5f });
         
-        return new BodyPlanDNA { Symmetry = SymmetryType.Bilateral, SpineSegments = 15, SpineSegmentLength = 0.5f, PosturePitch = 0f, SpineStiffness = 0f, Limbs = limbs };
+        return new BodyPlanDNA { 
+            Symmetry = SymmetryType.Bilateral, SpineSegments = 15, SpineSegmentLength = 0.5f, TailSegments = 0, TailSegmentLength = 0f,
+            PosturePitch = 0f, SpineStiffness = 0f, Limbs = limbs 
+        };
     }
 
     private BodyPlanDNA GetStarfishDNA()
     {
         return new BodyPlanDNA {
-            Symmetry = SymmetryType.Radial, RadialCount = 5, SpineSegments = 1, SpineSegmentLength = 0.1f, PosturePitch = 0f, SpineStiffness = 0f,
+            Symmetry = SymmetryType.Radial, RadialCount = 5, SpineSegments = 1, SpineSegmentLength = 0.1f, TailSegments = 0, TailSegmentLength = 0f, 
+            PosturePitch = 0f, SpineStiffness = 0f,
             Limbs = new List<LimbDNA> { new LimbDNA { Type = LimbType.Leg, AttachedSegmentIndex = 0, JointCount = 4, BoneLengths = new float[] { 0.8f, 0.6f, 0.4f, 0.2f }, Pitch = 10, Yaw = 0, Roll = 0, AttachmentSpacing = 0.2f } }
         };
     }
@@ -223,12 +247,14 @@ public class Phase1Demo : MonoBehaviour
     private BodyPlanDNA GetTentacleAlienDNA()
     {
         return new BodyPlanDNA {
-            Symmetry = SymmetryType.Radial, RadialCount = 6, SpineSegments = 2, SpineSegmentLength = 0.5f, PosturePitch = 0f, SpineStiffness = 0f,
+            Symmetry = SymmetryType.Radial, RadialCount = 6, SpineSegments = 2, SpineSegmentLength = 0.5f, TailSegments = 0, TailSegmentLength = 0f, 
+            PosturePitch = 0f, SpineStiffness = 0f,
             Limbs = new List<LimbDNA> {
                 new LimbDNA { Type = LimbType.Tentacle, AttachedSegmentIndex = 0, JointCount = 5, BoneLengths = new float[] { 0.6f, 0.5f, 0.4f, 0.3f, 0.2f }, Pitch = 15, Yaw = 0, Roll = 0, AttachmentSpacing = 0.5f },
                 new LimbDNA { Type = LimbType.Horn, AttachedSegmentIndex = 1, JointCount = 1, BoneLengths = new float[] { 0.8f }, Pitch = -45, Yaw = 0, Roll = 0, AttachmentSpacing = 0.3f }
             }
         };
     }
+
     #endregion
 }

@@ -1,4 +1,3 @@
-// Assets/Scripts/DNA/AnimalDNA.cs
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -14,7 +13,8 @@ public enum LimbType
     Leg,
     Manipulator,
     Horn,
-    Tentacle
+    Tentacle,
+    Tail
 }
 
 [System.Serializable]
@@ -38,11 +38,10 @@ public struct BodyPlanDNA
     public int RadialCount;
     public int SpineSegments;
     public float SpineSegmentLength;
-    
-    // NEW: Determines how upright the creature stands and how rigid the spine is
-    public float PosturePitch; 
+    public int TailSegments;
+    public float TailSegmentLength;
+    public float PosturePitch;
     public float SpineStiffness;
-
     public List<LimbDNA> Limbs;
 }
 
