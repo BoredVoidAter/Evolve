@@ -84,7 +84,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::IDMapRendererFeature
   m_Active: 1
   idAndNormalMaterial: {fileID: 2100000, guid: 154fae3fecc23494ea768cc45ae07da3, type: 2}
-  outlineMaterial: {fileID: 2100000, guid: da1f613e8d16661988a4439b2ada24b8, type: 2}
+  outlineMaterial: {fileID: 2100000, guid: 8778f0ef0f413ce7181d2f2fcf03ddd9, type: 2}
   layerMask:
     serializedVersion: 2
     m_Bits: 8

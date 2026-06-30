@@ -170,7 +170,7 @@ MonoBehaviour:
   currentCreature: 0
   customStyleSheet: {fileID: 7433441132597879392, guid: bd2b4c8a39660db1c9b7bb6243ee1c91, type: 3}
   floorMaterial: {fileID: 2100000, guid: 648ea35b521bec692912cde23135b79d, type: 2}
-  fleshMaterial: {fileID: 2100000, guid: 17ca68efcf258cb7184e2ed014755ac3, type: 2}
+  fleshMaterial: {fileID: 2100000, guid: 5125e6bc231c8d7b1a8cb6951ef67ee7, type: 2}
 --- !u!114 &35180677
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -206,7 +206,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5b858cef571957e10be7adb04a401f95, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CreatureFleshBuilder
-  fleshMaterial: {fileID: 2100000, guid: 17ca68efcf258cb7184e2ed014755ac3, type: 2}
+  fleshMaterial: {fileID: 2100000, guid: 5125e6bc231c8d7b1a8cb6951ef67ee7, type: 2}
 --- !u!114 &35180679
 MonoBehaviour:
   m_ObjectHideFlags: 0
