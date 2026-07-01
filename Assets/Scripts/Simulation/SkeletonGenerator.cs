@@ -90,14 +90,14 @@ public static class SkeletonGenerator
             avgLegLength = sum / legs.Count;
         }
         
-        state.StepDistance = avgLegLength * 1.0f;
+        state.StepDistance = Mathf.Clamp(avgLegLength * 0.6f, 0.2f, 2.0f);
         state.StepHeight = avgLegLength * 0.25f;
         float bodyLength = (dna.SpineSegments * dna.SpineSegmentLength) + (dna.TailSegments * dna.TailSegmentLength);
         if (bodyLength < 0.1f) bodyLength = 0.1f;
         float baseSpeed = (avgLegLength * 1.0f) + (bodyLength * 0.2f);
         float legCountMultiplier = 1f + (legs.Count * 0.05f);
         state.WalkSpeed = Mathf.Max(0.5f, baseSpeed * legCountMultiplier * 0.6f);
-        state.TurnSpeed = 60f / (1f + bodyLength);
+        state.TurnSpeed = 15f / (1f + state.BoundingRadius * 2f);
         
         float postureCost = 0f;
         if (legs.Count == 2)

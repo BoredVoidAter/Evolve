@@ -60,7 +60,7 @@ public class CreatureFleshBuilder : MonoBehaviour
         void FindBones(Transform t)
         {
             if (t.name.StartsWith("Spine_")) spineBones.Add(t);
-            else if (t.name.StartsWith("Tail_")) tailBones.Add(t);
+            else if (t.name.StartsWith("Tail_")) tailBones.Add(t); // Includes Tips
             
             foreach (Transform child in t) FindBones(child);
         }
@@ -72,8 +72,25 @@ public class CreatureFleshBuilder : MonoBehaviour
             return match.Success ? int.Parse(match.Value) : 0;
         }
 
-        spineBones.Sort((a, b) => ExtractNumber(a.name).CompareTo(ExtractNumber(b.name)));
-        tailBones.Sort((a, b) => ExtractNumber(a.name).CompareTo(ExtractNumber(b.name)));
+        spineBones.Sort((a, b) => 
+        {
+            int numA = ExtractNumber(a.name);
+            int numB = ExtractNumber(b.name);
+            if (numA != numB) return numA.CompareTo(numB);
+            if (a.name.Contains("_Tip")) return 1;
+            if (b.name.Contains("_Tip")) return -1;
+            return 0;
+        });
+        
+        tailBones.Sort((a, b) => 
+        {
+            int numA = ExtractNumber(a.name);
+            int numB = ExtractNumber(b.name);
+            if (numA != numB) return numA.CompareTo(numB); 
+            if (a.name.Contains("_Tip")) return 1;
+            if (b.name.Contains("_Tip")) return -1;
+            return 0;
+        });
 
         List<Transform> chain = new List<Transform>();
         chain.AddRange(spineBones);
@@ -140,7 +157,14 @@ public class CreatureFleshBuilder : MonoBehaviour
                 for (int i = 0; i < chain.Count; i++) 
                     if (chain[i].name.StartsWith("Spine_")) spineCount++;
 
-                float t_norm = spineCount > 1 ? (float)index / (spineCount - 1) : 0f;
+                int spineIndex = 0;
+                for (int i = 0; i < chain.Count; i++)
+                {
+                    if (chain[i] == t) break;
+                    if (chain[i].name.StartsWith("Spine_")) spineIndex++;
+                }
+
+                float t_norm = spineCount > 1 ? (float)spineIndex / (spineCount - 1) : 0f;
                 float spineProfile = Mathf.Sin(t_norm * Mathf.PI);
                 baseRadius = 0.4f + 0.05f * spineProfile;
             }
@@ -157,9 +181,10 @@ public class CreatureFleshBuilder : MonoBehaviour
             else if (type == LimbType.Tentacle) baseRadius = 0.2f;
             else if (type == LimbType.Head)
             {
-                float profile = Mathf.Sin(t_norm * Mathf.PI);
-                float baseR = Mathf.Lerp(0.2f, 0.05f, t_norm); 
-                return baseR + 0.25f * profile; 
+                float skullProfile = Mathf.Sin(t_norm * Mathf.PI);
+                float jawProfile = Mathf.Lerp(1.0f, 0.3f, t_norm);
+                float baseR = 0.3f * jawProfile;
+                return baseR + 0.2f * skullProfile;
             }
             else baseRadius = 0.2f;
             
@@ -263,8 +288,8 @@ public class CreatureFleshBuilder : MonoBehaviour
             Vector3 socketRight = socketRot * Vector3.right;
             socketUp = socketRot * Vector3.up;
             
-            float embedDepth = Mathf.Max(r0 * 2.5f, distToSpine * 0.9f);
-            float socketRadius = r0 * 1.6f;
+            float embedDepth = Mathf.Min(r0 * 2.5f, distToSpine * 0.9f);
+            float socketRadius = Mathf.Min(r0 * 1.6f, r0 + distToSpine * 0.5f);
 
             if (isHead)
             {
@@ -273,7 +298,6 @@ public class CreatureFleshBuilder : MonoBehaviour
             }
 
             Vector3 ring0Pos = chain[0].position - socketNormal * embedDepth;
-            if (isHead) ring0Pos += socketUp * 0.15f; 
 
             rings.Add(new RingDef {
                 position = ring0Pos,
@@ -284,7 +308,6 @@ public class CreatureFleshBuilder : MonoBehaviour
             });
             
             Vector3 ring1Pos = chain[0].position;
-            if (isHead) ring1Pos += socketUp * 0.15f; 
 
             rings.Add(new RingDef {
                 position = ring1Pos,
@@ -301,7 +324,6 @@ public class CreatureFleshBuilder : MonoBehaviour
             Quaternion transRot = Quaternion.Slerp(socketRot, limbRot, 0.5f);
             
             Vector3 ring2Pos = chain[0].position + thighDir * 0.25f;
-            if (isHead) ring2Pos += (transRot * Vector3.up) * 0.15f;
 
             rings.Add(new RingDef {
                 position = ring2Pos,
@@ -314,7 +336,6 @@ public class CreatureFleshBuilder : MonoBehaviour
             for (int i = 1; i < chain.Count; i++)
             {
                 Vector3 ringPos = chain[i].position;
-                if (isHead) ringPos += chain[i].up * 0.15f;
 
                 rings.Add(new RingDef {
                     position = ringPos,

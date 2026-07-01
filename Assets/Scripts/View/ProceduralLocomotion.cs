@@ -31,6 +31,7 @@ public class ProceduralLocomotion : MonoBehaviour
         public Transform attachedSpine;
         public Vector3 restingPositionLocal;
         public Vector3 localBendDir;
+        public Vector3 localPlaneNormal;
         public Vector3 restingDirLocal;
         public Vector3 stableUpLocal;
         public float phaseOffset;
@@ -165,11 +166,17 @@ public class ProceduralLocomotion : MonoBehaviour
                     limb.phaseOffset = Random.Range(0f, Mathf.PI * 2f);
                     limb.restingPositionLocal = limb.attachedSpine.InverseTransformPoint(idealRest);
                     limb.restingDirLocal = limb.attachedSpine.InverseTransformDirection(restDir);
+                    
                     Vector3 limbDirLocal = limb.attachedSpine.InverseTransformDirection(restDir);
                     if (Mathf.Abs(limbDirLocal.x) > 0.5f) limb.localBendDir = Vector3.up;
                     else if (limbDirLocal.y < -0.5f) limb.localBendDir = Vector3.back;
                     else if (limbDirLocal.y > 0.5f) limb.localBendDir = Vector3.down;
                     else limb.localBendDir = Vector3.up;
+                    
+                    Vector3 restBendDirWorld = limb.attachedSpine.TransformDirection(limb.localBendDir);
+                    Vector3 restPlaneNormal = Vector3.Cross(restDir, restBendDirWorld).normalized;
+                    if (restPlaneNormal.sqrMagnitude < 0.01f) restPlaneNormal = limb.attachedSpine.right;
+                    limb.localPlaneNormal = limb.attachedSpine.InverseTransformDirection(restPlaneNormal);
                     
                     // Capture the initial un-twisted UP vector directly from the joint orientation
                     limb.stableUpLocal = limb.attachedSpine.InverseTransformDirection(limb.joints[0].up);
@@ -298,8 +305,8 @@ public class ProceduralLocomotion : MonoBehaviour
             _tail[i].transform.localRotation = _tail[i].baseLocalRotation * Quaternion.Euler(0, tailWiggle, 0);
         }
         
-        float expectedStepTime = (_simState.StepDistance / Mathf.Max(_simState.WalkSpeed, 0.1f)) * 0.4f;
-        float dynamicStepSpeed = 1f / Mathf.Clamp(expectedStepTime, 0.1f, 0.8f);
+        float expectedStepTime = (_simState.StepDistance / Mathf.Max(_simState.WalkSpeed, 0.1f)) * 0.5f;
+        float dynamicStepSpeed = 1f / Mathf.Clamp(expectedStepTime, 0.15f, 0.8f);
         
         for (int i = 0; i < _limbs.Count; i++)
         {
@@ -325,12 +332,12 @@ public class ProceduralLocomotion : MonoBehaviour
                     }
                 }
                 bool canStep = !opposingGroupStepping;
-                if (err > _simState.StepDistance * 1.25f || distToTarget > limb.totalLength * 0.98f)
+                if (err > _simState.StepDistance * 0.8f || distToTarget > limb.totalLength * 0.85f)
                     canStep = true;
-                if (!limb.isStepping && err > _simState.StepDistance * 0.8f && canStep)
+                if (!limb.isStepping && err > _simState.StepDistance * 0.5f && canStep)
                 {
                     limb.stepStart = limb.ikTarget;
-                    Vector3 stepForward = transform.forward * (_simState.WalkSpeed * expectedStepTime * 1.2f);
+                    Vector3 stepForward = transform.forward * (_simState.StepDistance * 0.5f);
                     limb.stepEnd = desiredPos + stepForward;
                     if (Physics.Raycast(limb.stepEnd + Vector3.up * 5f, Vector3.down, out RaycastHit hitEnd, 10f))
                         limb.stepEnd = hitEnd.point;
@@ -387,10 +394,18 @@ public class ProceduralLocomotion : MonoBehaviour
         
         if (Vector3.Distance(rootPos, targetPos) < 0.01f) return;
         
-        Vector3 worldBendDir = limb.attachedSpine.TransformDirection(limb.localBendDir);
         Vector3 rootToTarget = (targetPos - rootPos).normalized;
-        Vector3 planeNormal = Vector3.Cross(rootToTarget, worldBendDir).normalized;
+        Vector3 stablePlaneNormal = limb.attachedSpine.TransformDirection(limb.localPlaneNormal);
+        
+        Vector3 planeNormal = Vector3.ProjectOnPlane(stablePlaneNormal, rootToTarget).normalized;
         if (planeNormal.sqrMagnitude < 0.01f) planeNormal = limb.attachedSpine.right;
+        
+        Vector3 worldBendDir = Vector3.Cross(planeNormal, rootToTarget).normalized;
+        if (Vector3.Dot(worldBendDir, limb.attachedSpine.TransformDirection(limb.localBendDir)) < 0)
+        {
+            worldBendDir = -worldBendDir;
+            planeNormal = -planeNormal;
+        }
         
         if (Vector3.Distance(rootPos, targetPos) > limb.totalLength * 0.99f)
         {
@@ -443,22 +458,17 @@ public class ProceduralLocomotion : MonoBehaviour
             {
                 if (i == 0)
                 {
-                    // Ensure the starting 'up' doesn't align purely with 'forward' (gimbal lock check)
-                    if (Mathf.Abs(Vector3.Dot(dir, currentUp)) > 0.99f)
+                    // Align the first joint's Up vector directly with the bend plane to completely prevent shoulder twisting
+                    Vector3 upInPlane = Vector3.Cross(dir, planeNormal).normalized;
+                    if (Vector3.Dot(upInPlane, currentUp) < 0f)
                     {
-                        currentUp = limb.attachedSpine.up;
-                        if (Mathf.Abs(Vector3.Dot(dir, currentUp)) > 0.99f)
-                            currentUp = limb.attachedSpine.forward;
+                        upInPlane = -upInPlane;
                     }
-                    
-                    // Orthogonalize to guarantee a clean 90-degree frame
-                    Vector3 right = Vector3.Cross(currentUp, dir).normalized;
-                    currentUp = Vector3.Cross(dir, right).normalized;
+                    currentUp = upInPlane;
                 }
                 else
                 {
                     // For subsequent joints, swing the Up vector by exactly the angle the joint bent
-                    // This creates 0 twisting across the entire length of the limb mathematically
                     Quaternion swing = Quaternion.FromToRotation(prevDir, dir);
                     currentUp = swing * currentUp;
                 }
