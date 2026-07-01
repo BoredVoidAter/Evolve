@@ -36,3 +36,5 @@ Assets/hackatime.txt
 repomix.config.json
 .repomixignore
 repomix-unity.xml
+repomix.sh
+repomix-output.xml

@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using System.Text.RegularExpressions;
 
 public class CreatureFleshBuilder : MonoBehaviour
 {
@@ -33,6 +34,7 @@ public class CreatureFleshBuilder : MonoBehaviour
 
         uint creatureId = (uint)Random.Range(1, int.MaxValue);
 
+        // Main body is now perfectly ordered from Head to Tail Tip
         List<Transform> spineChain = GetSpineChain(rootBoneTransform);
         BuildChainMesh("BodyFlesh", spineChain, dna, true, creatureId, rootBoneTransform);
 
@@ -52,30 +54,31 @@ public class CreatureFleshBuilder : MonoBehaviour
 
     private List<Transform> GetSpineChain(Transform rootBone)
     {
+        List<Transform> spineBones = new List<Transform>();
+        List<Transform> tailBones = new List<Transform>();
+        
+        void FindBones(Transform t)
+        {
+            if (t.name.StartsWith("Spine_")) spineBones.Add(t);
+            else if (t.name.StartsWith("Tail_")) tailBones.Add(t);
+            
+            foreach (Transform child in t) FindBones(child);
+        }
+        FindBones(rootBone);
+
+        int ExtractNumber(string name)
+        {
+            var match = Regex.Match(name, @"\d+");
+            return match.Success ? int.Parse(match.Value) : 0;
+        }
+
+        spineBones.Sort((a, b) => ExtractNumber(a.name).CompareTo(ExtractNumber(b.name)));
+        tailBones.Sort((a, b) => ExtractNumber(a.name).CompareTo(ExtractNumber(b.name)));
+
         List<Transform> chain = new List<Transform>();
-        Transform curr = null;
-        foreach (Transform child in rootBone)
-        {
-            if (child.name.StartsWith("Spine_"))
-            {
-                curr = child;
-                break;
-            }
-        }
-        while (curr != null)
-        {
-            chain.Add(curr);
-            Transform next = null;
-            foreach (Transform child in curr)
-            {
-                if (child.name.StartsWith("Spine_") || child.name.StartsWith("Tail_") || child.name.EndsWith("_Tip"))
-                {
-                    next = child;
-                    break;
-                }
-            }
-            curr = next;
-        }
+        chain.AddRange(spineBones);
+        chain.AddRange(tailBones);
+        
         return chain;
     }
 
@@ -118,27 +121,33 @@ public class CreatureFleshBuilder : MonoBehaviour
         return chain;
     }
 
-    private float GetRadius(int index, int total, bool isBody, Transform t, AnimalDNA dna)
+    private float GetRadius(int index, List<Transform> chain, bool isBody, AnimalDNA dna)
     {
-        float t_norm = total > 1 ? (float)index / (total - 1) : 0f;
+        Transform t = chain[index];
         float baseRadius = 0.3f;
         
         if (isBody)
         {
-            if (t.name.Contains("Tail_"))
+            if (t.name.StartsWith("Tail_"))
             {
-                float distFromEnd = total - 1 - index;
+                float distFromEnd = chain.Count - 1 - index;
                 float taper = Mathf.Clamp01(distFromEnd / 4f);
                 baseRadius = Mathf.Lerp(0.05f, 0.4f, taper);
             }
             else
             {
+                int spineCount = 0;
+                for (int i = 0; i < chain.Count; i++) 
+                    if (chain[i].name.StartsWith("Spine_")) spineCount++;
+
+                float t_norm = spineCount > 1 ? (float)index / (spineCount - 1) : 0f;
                 float spineProfile = Mathf.Sin(t_norm * Mathf.PI);
                 baseRadius = 0.4f + 0.05f * spineProfile;
             }
         }
         else
         {
+            float t_norm = chain.Count > 1 ? (float)index / (chain.Count - 1) : 0f;
             BoneTag tag = t.GetComponent<BoneTag>();
             LimbType type = tag != null ? tag.bone.Type : LimbType.Leg;
             
@@ -149,7 +158,8 @@ public class CreatureFleshBuilder : MonoBehaviour
             else if (type == LimbType.Head)
             {
                 float profile = Mathf.Sin(t_norm * Mathf.PI);
-                return 0.25f + 0.2f * profile;
+                float baseR = Mathf.Lerp(0.2f, 0.05f, t_norm); 
+                return baseR + 0.25f * profile; 
             }
             else baseRadius = 0.2f;
             
@@ -177,10 +187,14 @@ public class CreatureFleshBuilder : MonoBehaviour
         
         List<Transform> bones = new List<Transform>();
         bool isLimb = (!isBody && chain[0].parent != null);
+        bool isHead = false;
+
         if (isLimb)
         {
             bones.Add(chain[0].parent);
             bones.AddRange(chain);
+            BoneTag tag = chain[0].GetComponent<BoneTag>();
+            if (tag != null && tag.bone.Type == LimbType.Head) isHead = true;
         }
         else
         {
@@ -188,22 +202,49 @@ public class CreatureFleshBuilder : MonoBehaviour
         }
         
         List<RingDef> rings = new List<RingDef>();
+        Vector3 lastUp = Vector3.zero;
+
         if (isBody)
         {
+            // Clean Bishop Frame: Guarantees a perfectly non-twisted tube geometry
             for (int i = 0; i < chain.Count; i++)
             {
+                Vector3 forward = Vector3.zero;
+                if (i < chain.Count - 1) 
+                    forward = chain[i + 1].position - chain[i].position;
+                else if (i > 0) 
+                    forward = chain[i].position - chain[i - 1].position;
+                
+                if (forward.sqrMagnitude < 0.001f) forward = chain[i].forward;
+                forward = forward.normalized;
+
+                Vector3 up;
+                if (i == 0)
+                {
+                    up = Vector3.ProjectOnPlane(chain[i].up, forward).normalized;
+                    if (up.sqrMagnitude < 0.001f) up = Vector3.up; 
+                }
+                else
+                {
+                    up = Vector3.ProjectOnPlane(lastUp, forward).normalized;
+                    if (up.sqrMagnitude < 0.001f) up = lastUp; 
+                }
+
+                Vector3 right = Vector3.Cross(up, forward).normalized;
+                lastUp = up;
+
                 rings.Add(new RingDef {
                     position = chain[i].position,
-                    right = chain[i].right,
-                    up = chain[i].up,
-                    radius = GetRadius(i, chain.Count, true, chain[i], dna),
+                    right = right,
+                    up = up,
+                    radius = GetRadius(i, chain, true, dna),
                     weight = new BoneWeight { boneIndex0 = i, weight0 = 1f }
                 });
             }
         }
         else
         {
-            float r0 = GetRadius(0, chain.Count, false, chain[0], dna);
+            float r0 = GetRadius(0, chain, false, dna);
             Vector3 outwardDir = chain[0].position - chain[0].parent.position;
             float distToSpine = outwardDir.magnitude;
             
@@ -223,16 +264,30 @@ public class CreatureFleshBuilder : MonoBehaviour
             socketUp = socketRot * Vector3.up;
             
             float embedDepth = Mathf.Max(r0 * 2.5f, distToSpine * 0.9f);
+            float socketRadius = r0 * 1.6f;
+
+            if (isHead)
+            {
+                embedDepth = distToSpine * 0.5f; 
+                socketRadius = r0 * 1.1f;
+            }
+
+            Vector3 ring0Pos = chain[0].position - socketNormal * embedDepth;
+            if (isHead) ring0Pos += socketUp * 0.15f; 
+
             rings.Add(new RingDef {
-                position = chain[0].position - socketNormal * embedDepth,
+                position = ring0Pos,
                 right = socketRight,
                 up = socketUp,
-                radius = r0 * 1.6f,
+                radius = socketRadius,
                 weight = new BoneWeight { boneIndex0 = 0, weight0 = 1f }
             });
             
+            Vector3 ring1Pos = chain[0].position;
+            if (isHead) ring1Pos += socketUp * 0.15f; 
+
             rings.Add(new RingDef {
-                position = chain[0].position,
+                position = ring1Pos,
                 right = socketRight,
                 up = socketUp,
                 radius = r0,
@@ -245,21 +300,27 @@ public class CreatureFleshBuilder : MonoBehaviour
             Quaternion limbRot = Quaternion.LookRotation(chain[0].forward, chain[0].up);
             Quaternion transRot = Quaternion.Slerp(socketRot, limbRot, 0.5f);
             
+            Vector3 ring2Pos = chain[0].position + thighDir * 0.25f;
+            if (isHead) ring2Pos += (transRot * Vector3.up) * 0.15f;
+
             rings.Add(new RingDef {
-                position = chain[0].position + thighDir * 0.25f,
+                position = ring2Pos,
                 right = transRot * Vector3.right,
                 up = transRot * Vector3.up,
-                radius = Mathf.Lerp(r0, GetRadius(1, chain.Count, false, chain[1], dna), 0.25f),
+                radius = Mathf.Lerp(r0, GetRadius(1, chain, false, dna), 0.25f),
                 weight = new BoneWeight { boneIndex0 = 1, weight0 = 1f }
             });
             
             for (int i = 1; i < chain.Count; i++)
             {
+                Vector3 ringPos = chain[i].position;
+                if (isHead) ringPos += chain[i].up * 0.15f;
+
                 rings.Add(new RingDef {
-                    position = chain[i].position,
+                    position = ringPos,
                     right = chain[i].right,
                     up = chain[i].up,
-                    radius = GetRadius(i, chain.Count, false, chain[i], dna),
+                    radius = GetRadius(i, chain, false, dna),
                     weight = new BoneWeight { boneIndex0 = i + 1, weight0 = 1f }
                 });
             }
@@ -292,7 +353,7 @@ public class CreatureFleshBuilder : MonoBehaviour
         
         int vertexOffset = vertices.Count;
         
-        // Ring Vertices (using <= radialSegments to create a seamless UV wrapping seam)
+        // Ring Vertices 
         for (int i = 0; i < numRings; i++)
         {
             RingDef ring = rings[i];
@@ -312,26 +373,15 @@ public class CreatureFleshBuilder : MonoBehaviour
             }
         }
 
-        // Only invert the winding for the main body, keeping the limbs oriented correctly
-        bool invertWinding = isBody;
-        
-        // Start Cap Triangles
+        // Start Cap Triangles (Standard Outward)
         for (int j = 0; j < radialSegments; j++)
         {
             triangles.Add(firstCenter);
-            if (invertWinding)
-            {
-                triangles.Add(vertexOffset + j);
-                triangles.Add(vertexOffset + j + 1);
-            }
-            else
-            {
-                triangles.Add(vertexOffset + j + 1);
-                triangles.Add(vertexOffset + j);
-            }
+            triangles.Add(vertexOffset + j + 1);
+            triangles.Add(vertexOffset + j);
         }
         
-        // Body Triangles
+        // Body Triangles (Standard Outward)
         for (int i = 0; i < numRings - 1; i++)
         {
             for (int j = 0; j < radialSegments; j++)
@@ -344,20 +394,12 @@ public class CreatureFleshBuilder : MonoBehaviour
                 int c = nextRing + j;
                 int d = nextRing + j + 1;
                 
-                if (invertWinding)
-                {
-                    triangles.Add(a); triangles.Add(c); triangles.Add(b);
-                    triangles.Add(b); triangles.Add(c); triangles.Add(d);
-                }
-                else
-                {
-                    triangles.Add(a); triangles.Add(b); triangles.Add(c);
-                    triangles.Add(b); triangles.Add(d); triangles.Add(c);
-                }
+                triangles.Add(a); triangles.Add(b); triangles.Add(c);
+                triangles.Add(b); triangles.Add(d); triangles.Add(c);
             }
         }
         
-        // End Cap
+        // End Cap Triangles (Standard Outward)
         int lastCenter = vertices.Count;
         Vector3 ringLastNormal = Vector3.Cross(rings[numRings - 1].right, rings[numRings - 1].up).normalized;
         Vector3 endCapPos = rings[numRings - 1].position + ringLastNormal * (rings[numRings - 1].radius * 0.2f);
@@ -365,21 +407,12 @@ public class CreatureFleshBuilder : MonoBehaviour
         weights.Add(rings[numRings - 1].weight);
         uvs.Add(new Vector2(0.5f, 1f));
         
-        // End Cap Triangles
         int lastRingOffset = vertexOffset + (numRings - 1) * (radialSegments + 1);
         for (int j = 0; j < radialSegments; j++)
         {
             triangles.Add(lastCenter);
-            if (invertWinding)
-            {
-                triangles.Add(lastRingOffset + j + 1);
-                triangles.Add(lastRingOffset + j);
-            }
-            else
-            {
-                triangles.Add(lastRingOffset + j);
-                triangles.Add(lastRingOffset + j + 1);
-            }
+            triangles.Add(lastRingOffset + j);
+            triangles.Add(lastRingOffset + j + 1);
         }
         
         mesh.SetVertices(vertices);
@@ -399,14 +432,14 @@ public class CreatureFleshBuilder : MonoBehaviour
         for (int i = 0; i < colors32.Length; i++) colors32[i] = idColor32;
         mesh.SetColors(colors32);
         
-        // Calculate both Normals and Tangents (Required for Normal Maps and Lighting to function)
-        mesh.RecalculateNormals();
+        // Unity calculates the normals automatically
+        mesh.RecalculateNormals(); 
         mesh.RecalculateTangents();
         mesh.RecalculateBounds();
         
         smr.bones = bones.ToArray();
         smr.sharedMesh = mesh;
         smr.rootBone = bones[0];
-        smr.updateWhenOffscreen = true; // Fixes bounds/culling during custom ID map rendering
+        smr.updateWhenOffscreen = true; 
     }
 }

@@ -10,6 +10,7 @@ Shader "Rendering/IDAndNormals"
 
             ZWrite Off
             ZTest LEqual
+            Cull Off
 
             HLSLPROGRAM
             #pragma vertex vert
