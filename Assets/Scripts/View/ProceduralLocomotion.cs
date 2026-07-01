@@ -458,13 +458,29 @@ public class ProceduralLocomotion : MonoBehaviour
             {
                 if (i == 0)
                 {
-                    // Align the first joint's Up vector directly with the bend plane to completely prevent shoulder twisting
-                    Vector3 upInPlane = Vector3.Cross(dir, planeNormal).normalized;
-                    if (Vector3.Dot(upInPlane, currentUp) < 0f)
+                    if (limb.type == LimbType.Leg || limb.type == LimbType.Manipulator)
                     {
-                        upInPlane = -upInPlane;
+                        // Prevent shoulder/hip from twisting by projecting the stable up vector onto the orthogonal plane
+                        Vector3 idealUp = limb.attachedSpine.TransformDirection(limb.stableUpLocal);
+                        Vector3 projectedUp = Vector3.ProjectOnPlane(idealUp, dir).normalized;
+                        
+                        if (projectedUp.sqrMagnitude < 0.001f)
+                        {
+                            projectedUp = Vector3.Cross(dir, planeNormal).normalized;
+                            if (Vector3.Dot(projectedUp, idealUp) < 0f) projectedUp = -projectedUp;
+                        }
+                        currentUp = projectedUp;
                     }
-                    currentUp = upInPlane;
+                    else
+                    {
+                        // Align the first joint's Up vector directly with the bend plane to completely prevent shoulder twisting
+                        Vector3 upInPlane = Vector3.Cross(dir, planeNormal).normalized;
+                        if (Vector3.Dot(upInPlane, currentUp) < 0f)
+                        {
+                            upInPlane = -upInPlane;
+                        }
+                        currentUp = upInPlane;
+                    }
                 }
                 else
                 {
