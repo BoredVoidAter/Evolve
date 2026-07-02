@@ -50,14 +50,18 @@ public static class SkeletonGenerator
             Rotation = Quaternion.identity,
             Heading = 0f
         };
-        CalculateBiometrics(state, dna.BodyPlan);
+        CalculateBiometrics(state, dna);
         return state;
     }
 
-    private static void CalculateBiometrics(SimCreatureState state, BodyPlanDNA dna)
+    private static void CalculateBiometrics(SimCreatureState state, AnimalDNA dna)
     {
         float totalBoneLength = CalculateTotalBoneLength(state.RootBone);
-        state.Mass = totalBoneLength * 8f;
+        
+        // Base mass from skeleton + added mass from tissues
+        float baseMass = totalBoneLength * 8f;
+        float addedMass = dna.Tissue.FatMass + dna.Tissue.MuscleMass + dna.Tissue.ArmorMass;
+        state.Mass = baseMass + addedMass;
         
         List<Vector3> allPoints = new List<Vector3>();
         ComputeModelSpace(state.RootBone, Vector3.zero, Quaternion.identity, allPoints);
@@ -92,28 +96,37 @@ public static class SkeletonGenerator
         
         state.StepDistance = Mathf.Clamp(avgLegLength * 0.6f, 0.2f, 2.0f);
         state.StepHeight = avgLegLength * 0.25f;
-        float bodyLength = (dna.SpineSegments * dna.SpineSegmentLength) + (dna.TailSegments * dna.TailSegmentLength);
+        
+        float bodyLength = (dna.BodyPlan.SpineSegments * dna.BodyPlan.SpineSegmentLength) + (dna.BodyPlan.TailSegments * dna.BodyPlan.TailSegmentLength);
         if (bodyLength < 0.1f) bodyLength = 0.1f;
+        
         float baseSpeed = (avgLegLength * 1.0f) + (bodyLength * 0.2f);
         float legCountMultiplier = 1f + (legs.Count * 0.05f);
-        state.WalkSpeed = Mathf.Max(0.5f, baseSpeed * legCountMultiplier * 0.6f);
+        
+        // Muscle increases speed, Armor and Fat penalize speed
+        float muscleBonus = 1f + (dna.Tissue.MuscleMass * 0.1f);
+        float weightPenalty = Mathf.Clamp01(1f - ((dna.Tissue.FatMass + dna.Tissue.ArmorMass) * 0.02f));
+        
+        state.WalkSpeed = Mathf.Max(0.5f, baseSpeed * legCountMultiplier * muscleBonus * weightPenalty * 0.6f);
         state.TurnSpeed = 15f / (1f + state.BoundingRadius * 2f);
         
         float postureCost = 0f;
         if (legs.Count == 2)
         {
-            float frontMass = dna.SpineSegments * dna.SpineSegmentLength;
-            float rearMass = dna.TailSegments * dna.TailSegmentLength;
+            float frontMass = dna.BodyPlan.SpineSegments * dna.BodyPlan.SpineSegmentLength;
+            float rearMass = dna.BodyPlan.TailSegments * dna.BodyPlan.TailSegmentLength;
             float balanceRatio = Mathf.Abs(frontMass - rearMass);
-            float horizontalPenalty = (90f - dna.PosturePitch) / 90f;
+            float horizontalPenalty = (90f - dna.BodyPlan.PosturePitch) / 90f;
             postureCost = balanceRatio * horizontalPenalty * 15f;
         }
         else if (legs.Count > 2)
         {
-            float uprightPenalty = dna.PosturePitch / 90f;
+            float uprightPenalty = dna.BodyPlan.PosturePitch / 90f;
             postureCost = uprightPenalty * 20f;
         }
-        state.EnergyCost = (state.Mass * 0.2f) + (state.WalkSpeed * 2f) + postureCost;
+        
+        // Total energy cost factors in muscles burning more calories
+        state.EnergyCost = (state.Mass * 0.2f) + (state.WalkSpeed * 2f) + postureCost + (dna.Tissue.MuscleMass * 1.5f);
     }
 
     private static void ComputeModelSpace(SimBone bone, Vector3 parentPos, Quaternion parentRot, List<Vector3> allPoints)
@@ -210,7 +223,6 @@ public static class SkeletonGenerator
                 SimBone attachBone = spineBones[segmentIndex];
                 string baseName = limbDna.Type.ToString();
                 
-                // If it's a Head or has zero attachment spacing, it should always be a single central appendage
                 bool isCentral = (limbDna.Type == LimbType.Head || limbDna.AttachmentSpacing == 0f);
 
                 if (isCentral)

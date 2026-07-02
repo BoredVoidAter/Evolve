@@ -18,6 +18,38 @@ public enum LimbType
     Head
 }
 
+public enum BodyRegionType
+{
+    Head,
+    Neck,
+    Thorax,
+    Abdomen,
+    Tail,
+    Limb
+}
+
+public enum TissueType
+{
+    Soft,
+    Muscle,
+    Cartilage,
+    Bone,
+    Chitin,
+    Keratin
+}
+
+public enum SurfaceFeatureType
+{
+    None,
+    Fur,
+    Feather,
+    Scale,
+    Spike,
+    Plate,
+    Ridge,
+    Frill
+}
+
 [System.Serializable]
 public struct LimbDNA
 {
@@ -47,8 +79,19 @@ public struct BodyPlanDNA
 }
 
 [System.Serializable]
+public struct BodyRegionDNA
+{
+    public BodyRegionType RegionType;
+    public float RelativeSize;
+    public float GrowthPriority;
+    public float GrowthRate;
+    public float GrowthDuration;
+}
+
+[System.Serializable]
 public struct MorphogenesisDNA
 {
+    public List<BodyRegionDNA> Regions;
     public float GlobalGrowthRate;
     public float MaturityAge;
 }
@@ -59,10 +102,18 @@ public struct TissueDNA
     public float MuscleMass;
     public float FatMass;
     public float ArmorMass;
+    public TissueType TissueType;
 }
 
 [System.Serializable]
-public struct SurfaceFeatureDNA { }
+public struct SurfaceFeatureDNA
+{
+    public SurfaceFeatureType Type;
+    public float Density;
+    public float Length;
+    public float Thickness;
+    public float Distribution;
+}
 
 [System.Serializable]
 public struct MembraneDNA
@@ -77,6 +128,11 @@ public struct OrganDNA
 {
     public string PrefabID;
     public int AttachedSegmentIndex;
+    public float SurfaceAngleAround;
+    public float SurfaceDepth;
+    public float MorphWidth;
+    public float MorphLength;
+    public float MorphSharpness;
 }
 
 [System.Serializable]

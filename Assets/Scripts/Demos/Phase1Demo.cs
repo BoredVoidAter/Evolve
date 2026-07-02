@@ -156,13 +156,35 @@ public class Phase1Demo : MonoBehaviour
         AnimalDNA dna = new AnimalDNA();
         switch (currentCreature)
         {
-            case CreatureType.Biped: dna.BodyPlan = GetBipedDNA(); break;
-            case CreatureType.Ape: dna.BodyPlan = GetApeDNA(); break;
-            case CreatureType.Spider: dna.BodyPlan = GetSpiderDNA(); break;
-            case CreatureType.Centipede: dna.BodyPlan = GetCentipedeDNA(); break;
-            case CreatureType.Starfish: dna.BodyPlan = GetStarfishDNA(); break;
-            case CreatureType.TentacleAlien: dna.BodyPlan = GetTentacleAlienDNA(); break;
+            case CreatureType.Biped: 
+                dna.BodyPlan = GetBipedDNA(); 
+                dna.Skin = new SkinDNA { PrimaryColor = new Color(0.2f, 0.6f, 0.3f, 1f), SecondaryColor = new Color(0.1f, 0.4f, 0.2f, 1f) };
+                break;
+            case CreatureType.Ape: 
+                dna.BodyPlan = GetApeDNA(); 
+                dna.Skin = new SkinDNA { PrimaryColor = new Color(0.4f, 0.3f, 0.2f, 1f), SecondaryColor = new Color(0.2f, 0.15f, 0.1f, 1f) };
+                break;
+            case CreatureType.Spider: 
+                dna.BodyPlan = GetSpiderDNA(); 
+                dna.Skin = new SkinDNA { PrimaryColor = new Color(0.1f, 0.1f, 0.1f, 1f), SecondaryColor = new Color(0.8f, 0.1f, 0.1f, 1f) };
+                break;
+            case CreatureType.Centipede: 
+                dna.BodyPlan = GetCentipedeDNA(); 
+                dna.Skin = new SkinDNA { PrimaryColor = new Color(0.6f, 0.2f, 0.1f, 1f), SecondaryColor = new Color(0.9f, 0.5f, 0.1f, 1f) };
+                break;
+            case CreatureType.Starfish: 
+                dna.BodyPlan = GetStarfishDNA(); 
+                dna.Skin = new SkinDNA { PrimaryColor = new Color(0.9f, 0.4f, 0.6f, 1f), SecondaryColor = new Color(0.8f, 0.2f, 0.4f, 1f) };
+                break;
+            case CreatureType.TentacleAlien: 
+                dna.BodyPlan = GetTentacleAlienDNA(); 
+                dna.Skin = new SkinDNA { PrimaryColor = new Color(0.3f, 0.1f, 0.7f, 1f), SecondaryColor = new Color(0.1f, 0.8f, 0.6f, 1f) };
+                break;
         }
+
+        // Initialize basic Phase 2 Structs so SkeletonGenerator math doesn't break
+        dna.Tissue = new TissueDNA { MuscleMass = 2f, FatMass = 1f };
+        dna.Morphogenesis = new MorphogenesisDNA { GlobalGrowthRate = 1f, Regions = new List<BodyRegionDNA>() };
 
         transform.position = new Vector3(0, 2f, 0);
         transform.localRotation = Quaternion.identity;

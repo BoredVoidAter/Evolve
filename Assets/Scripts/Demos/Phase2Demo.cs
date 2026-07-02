@@ -49,8 +49,10 @@ public class Phase2Demo : MonoBehaviour
         
         if (fleshMaterial == null)
         {
-            fleshMaterial = new Material(Shader.Find("Standard"));
-            fleshMaterial.color = new Color(0.8f, 0.4f, 0.3f);
+            Shader toon = Shader.Find("Shader Graphs/SH_UniversalToon");
+            fleshMaterial = new Material(toon != null ? toon : Shader.Find("Standard"));
+            if (fleshMaterial.HasProperty("_Col1")) fleshMaterial.SetColor("_Col1", new Color(0.8f, 0.4f, 0.3f, 1f));
+            if (fleshMaterial.HasProperty("_Color")) fleshMaterial.color = new Color(0.8f, 0.4f, 0.3f, 1f);
         }
         _fleshBuilder.fleshMaterial = fleshMaterial;
         
@@ -196,14 +198,44 @@ public class Phase2Demo : MonoBehaviour
     private void GenerateCreature()
     {
         AnimalDNA dna = new AnimalDNA();
+        dna.Morphogenesis = new MorphogenesisDNA { GlobalGrowthRate = 1f, Regions = new List<BodyRegionDNA>() };
+
         switch (currentCreature)
         {
-            case CreatureType.Biped: dna.BodyPlan = GetBipedDNA(); break;
-            case CreatureType.Ape: dna.BodyPlan = GetApeDNA(); break;
-            case CreatureType.Spider: dna.BodyPlan = GetSpiderDNA(); break;
-            case CreatureType.Centipede: dna.BodyPlan = GetCentipedeDNA(); break;
-            case CreatureType.Starfish: dna.BodyPlan = GetStarfishDNA(); break;
-            case CreatureType.TentacleAlien: dna.BodyPlan = GetTentacleAlienDNA(); break;
+            case CreatureType.Biped: 
+                dna.BodyPlan = GetBipedDNA(); 
+                dna.Tissue = new TissueDNA { MuscleMass = 5f, FatMass = 0f, ArmorMass = 0f };
+                dna.Features = new SurfaceFeatureDNA { Type = SurfaceFeatureType.Spike, Density = 1f, Length = 0.5f, Thickness = 0.15f };
+                dna.Skin = new SkinDNA { PrimaryColor = new Color(0.2f, 0.6f, 0.3f, 1f), SecondaryColor = new Color(0.1f, 0.4f, 0.2f, 1f) };
+                break;
+            case CreatureType.Ape: 
+                dna.BodyPlan = GetApeDNA(); 
+                dna.Tissue = new TissueDNA { MuscleMass = 8f, FatMass = 2f, ArmorMass = 0f };
+                dna.Skin = new SkinDNA { PrimaryColor = new Color(0.4f, 0.3f, 0.2f, 1f), SecondaryColor = new Color(0.2f, 0.15f, 0.1f, 1f) };
+                break;
+            case CreatureType.Spider: 
+                dna.BodyPlan = GetSpiderDNA(); 
+                dna.Tissue = new TissueDNA { MuscleMass = 1f, FatMass = 5f, ArmorMass = 0f };
+                dna.Skin = new SkinDNA { PrimaryColor = new Color(0.1f, 0.1f, 0.1f, 1f), SecondaryColor = new Color(0.8f, 0.1f, 0.1f, 1f) };
+                break;
+            case CreatureType.Centipede: 
+                dna.BodyPlan = GetCentipedeDNA(); 
+                dna.Tissue = new TissueDNA { MuscleMass = 2f, FatMass = 0f, ArmorMass = 8f };
+                dna.Features = new SurfaceFeatureDNA { Type = SurfaceFeatureType.Plate, Density = 1f, Length = 0.4f, Thickness = 0.1f };
+                dna.Skin = new SkinDNA { PrimaryColor = new Color(0.6f, 0.2f, 0.1f, 1f), SecondaryColor = new Color(0.9f, 0.5f, 0.1f, 1f) };
+                break;
+            case CreatureType.Starfish: 
+                dna.BodyPlan = GetStarfishDNA();
+                dna.Membranes = new MembraneDNA { WebbingAmount = 1f }; 
+                dna.Tissue = new TissueDNA { MuscleMass = 2f, FatMass = 2f, ArmorMass = 0f };
+                dna.Skin = new SkinDNA { PrimaryColor = new Color(0.9f, 0.4f, 0.6f, 1f), SecondaryColor = new Color(0.8f, 0.2f, 0.4f, 1f) };
+                break;
+            case CreatureType.TentacleAlien: 
+                dna.BodyPlan = GetTentacleAlienDNA(); 
+                dna.Membranes = new MembraneDNA { WebbingAmount = 1f }; 
+                dna.Tissue = new TissueDNA { MuscleMass = 3f, FatMass = 1f, ArmorMass = 0f };
+                dna.Skin = new SkinDNA { PrimaryColor = new Color(0.3f, 0.1f, 0.7f, 1f), SecondaryColor = new Color(0.1f, 0.8f, 0.6f, 1f) };
+                break;
         }
         
         transform.position = new Vector3(0, 2f, 0);
@@ -296,9 +328,8 @@ public class Phase2Demo : MonoBehaviour
             Symmetry = SymmetryType.Radial, RadialCount = 6, SpineSegments = 2, SpineSegmentLength = 0.5f, TailSegments = 0, TailSegmentLength = 0f,
             PosturePitch = 0f, SpineStiffness = 0f,
             Limbs = new List<LimbDNA> {
-                new LimbDNA { Type = LimbType.Head, AttachedSegmentIndex = 0, JointCount = 3, BoneLengths = new float[] { 0.5f, 0.5f, 0.4f }, Pitch = -45, Yaw = 0, Roll = 0, AttachmentSpacing = 0f },
-                new LimbDNA { Type = LimbType.Tentacle, AttachedSegmentIndex = 0, JointCount = 5, BoneLengths = new float[] { 0.6f, 0.5f, 0.4f, 0.3f, 0.2f }, Pitch = 15, Yaw = 0, Roll = 0, AttachmentSpacing = 0.5f },
-                new LimbDNA { Type = LimbType.Horn, AttachedSegmentIndex = 1, JointCount = 1, BoneLengths = new float[] { 0.8f }, Pitch = -45, Yaw = 0, Roll = 0, AttachmentSpacing = 0.3f }
+                new LimbDNA { Type = LimbType.Head, AttachedSegmentIndex = 0, JointCount = 3, BoneLengths = new float[] { 0.5f, 0.5f, 0.4f }, Pitch = -90, Yaw = 0, Roll = 0, AttachmentSpacing = 0f },
+                new LimbDNA { Type = LimbType.Tentacle, AttachedSegmentIndex = 0, JointCount = 5, BoneLengths = new float[] { 0.6f, 0.5f, 0.4f, 0.3f, 0.2f }, Pitch = 15, Yaw = 0, Roll = 0, AttachmentSpacing = 0.5f }
             }
         };
     }
