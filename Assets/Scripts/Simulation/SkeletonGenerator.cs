@@ -6,7 +6,14 @@ public class SimCreatureState
     public Vector3 Position;
     public Quaternion Rotation;
     public Vector3 Velocity;
+    
+    // Granular Masses
     public float Mass;
+    public float MuscleMass;
+    public float FatMass;
+    public float ArmorMass;
+    public float FeatureMass;
+    
     public Vector3 CenterOfMass;
     public float BoundingRadius;
     public SimBone RootBone;
@@ -58,10 +65,21 @@ public static class SkeletonGenerator
     {
         float totalBoneLength = CalculateTotalBoneLength(state.RootBone);
         
-        // Base mass from skeleton + added mass from tissues
+        // Granular Tissue Mass Calculation
+        state.MuscleMass = dna.Tissue.MuscleMass;
+        state.FatMass = dna.Tissue.FatMass;
+        state.ArmorMass = dna.Tissue.ArmorMass;
+        
+        float featureVol = 0f;
+        if (dna.Features.Type != SurfaceFeatureType.None)
+        {
+            featureVol = dna.Features.Density * dna.Features.Length * dna.Features.Thickness * totalBoneLength * 2f;
+        }
+        state.FeatureMass = featureVol;
+
+        // Base mass from skeleton + added mass from tissues and features
         float baseMass = totalBoneLength * 8f;
-        float addedMass = dna.Tissue.FatMass + dna.Tissue.MuscleMass + dna.Tissue.ArmorMass;
-        state.Mass = baseMass + addedMass;
+        state.Mass = baseMass + state.MuscleMass + state.FatMass + state.ArmorMass + state.FeatureMass;
         
         List<Vector3> allPoints = new List<Vector3>();
         ComputeModelSpace(state.RootBone, Vector3.zero, Quaternion.identity, allPoints);
@@ -104,8 +122,8 @@ public static class SkeletonGenerator
         float legCountMultiplier = 1f + (legs.Count * 0.05f);
         
         // Muscle increases speed, Armor and Fat penalize speed
-        float muscleBonus = 1f + (dna.Tissue.MuscleMass * 0.1f);
-        float weightPenalty = Mathf.Clamp01(1f - ((dna.Tissue.FatMass + dna.Tissue.ArmorMass) * 0.02f));
+        float muscleBonus = 1f + (state.MuscleMass * 0.1f);
+        float weightPenalty = Mathf.Clamp01(1f - ((state.FatMass + state.ArmorMass + state.FeatureMass) * 0.02f));
         
         state.WalkSpeed = Mathf.Max(0.5f, baseSpeed * legCountMultiplier * muscleBonus * weightPenalty * 0.6f);
         state.TurnSpeed = 15f / (1f + state.BoundingRadius * 2f);
@@ -125,8 +143,8 @@ public static class SkeletonGenerator
             postureCost = uprightPenalty * 20f;
         }
         
-        // Total energy cost factors in muscles burning more calories
-        state.EnergyCost = (state.Mass * 0.2f) + (state.WalkSpeed * 2f) + postureCost + (dna.Tissue.MuscleMass * 1.5f);
+        // Total energy cost factors in muscles burning more calories, and fat adding dead weight
+        state.EnergyCost = (state.Mass * 0.2f) + (state.WalkSpeed * 2f) + postureCost + (state.MuscleMass * 1.5f);
     }
 
     private static void ComputeModelSpace(SimBone bone, Vector3 parentPos, Quaternion parentRot, List<Vector3> allPoints)

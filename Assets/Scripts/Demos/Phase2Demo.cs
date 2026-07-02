@@ -8,13 +8,17 @@ using System.Collections.Generic;
 [RequireComponent(typeof(UIDocument))]
 public class Phase2Demo : MonoBehaviour
 {
-    public enum CreatureType { Biped, Ape, Spider, Centipede, Starfish, TentacleAlien }
+    public enum CreatureType { Biped, Ape, Spider, Centipede, Starfish, TentacleAlien, Lizard, Triceratops, Mammal }
     
     [Header("Demo Settings")]
     public CreatureType currentCreature = CreatureType.Biped;
     public StyleSheet customStyleSheet;
     public Material floorMaterial;
     public Material fleshMaterial;
+
+    [Header("Textures (Phase 2 & 3)")]
+    public Texture2D fluffyTexture;
+    public Texture2D scalesTexture;
     
     private SkeletonVisualizer _visualizer;
     private ProceduralLocomotion _locomotion;
@@ -38,6 +42,20 @@ public class Phase2Demo : MonoBehaviour
         _uiDocument = GetComponent<UIDocument>();
         _demoCamera = GetComponentInChildren<Camera>();
         
+        #if UNITY_EDITOR
+        // Auto-load textures robustly using AssetDatabase so file paths don't break
+        if (fluffyTexture == null) 
+        {
+            string[] guids = UnityEditor.AssetDatabase.FindAssets("Fluffy t:Texture2D");
+            if (guids.Length > 0) fluffyTexture = UnityEditor.AssetDatabase.LoadAssetAtPath<Texture2D>(UnityEditor.AssetDatabase.GUIDToAssetPath(guids[0]));
+        }
+        if (scalesTexture == null) 
+        {
+            string[] guids = UnityEditor.AssetDatabase.FindAssets("Scales t:Texture2D");
+            if (guids.Length > 0) scalesTexture = UnityEditor.AssetDatabase.LoadAssetAtPath<Texture2D>(UnityEditor.AssetDatabase.GUIDToAssetPath(guids[0]));
+        }
+        #endif
+
         if (_demoCamera == null)
         {
             GameObject camObj = new GameObject("DemoCamera");
@@ -69,8 +87,11 @@ public class Phase2Demo : MonoBehaviour
             if (_statsLabel != null)
             {
                 _statsLabel.text = $"MASS: {_simState.Mass:F1} kg\n" +
+                                   $" - MUSCLE: {_simState.MuscleMass:F1} kg\n" +
+                                   $" - FAT: {_simState.FatMass:F1} kg\n" +
+                                   $" - ARMOR: {_simState.ArmorMass:F1} kg\n" +
+                                   $" - FEATURES: {_simState.FeatureMass:F1} kg\n" +
                                    $"SPEED: {_simState.WalkSpeed:F2} m/s\n" +
-                                   $"STRIDE: {_simState.StepDistance:F2} m\n" +
                                    $"ENERGY COST: {_simState.EnergyCost:F1}/m";
             }
         }
@@ -125,7 +146,7 @@ public class Phase2Demo : MonoBehaviour
         panel.style.position = Position.Absolute;
         panel.style.top = 20;
         panel.style.left = 20;
-        panel.style.width = 320;
+        panel.style.width = 340;
         panel.style.paddingTop = 20;
         panel.style.paddingBottom = 20;
         panel.style.paddingLeft = 20;
@@ -133,28 +154,36 @@ public class Phase2Demo : MonoBehaviour
         
         Label title = new Label("PHASE 2: MORPHOGENESIS");
         title.AddToClassList("panel-header");
-        title.style.fontSize = 28;
+        title.style.fontSize = 24;
         panel.Add(title);
         
         VisualElement divider = new VisualElement();
         divider.AddToClassList("section-divider");
         panel.Add(divider);
         
-        panel.Add(CreateButton("BIPED (T-REX)", CreatureType.Biped));
-        panel.Add(CreateButton("APE", CreatureType.Ape));
-        panel.Add(CreateButton("SPIDER", CreatureType.Spider));
-        panel.Add(CreateButton("CENTIPEDE", CreatureType.Centipede));
-        panel.Add(CreateButton("STARFISH", CreatureType.Starfish));
-        panel.Add(CreateButton("TENTACLE ALIEN", CreatureType.TentacleAlien));
+        ScrollView scroll = new ScrollView(ScrollViewMode.Vertical);
+        scroll.style.maxHeight = 350;
         
+        scroll.Add(CreateButton("BIPED (T-REX)", CreatureType.Biped));
+        scroll.Add(CreateButton("APE", CreatureType.Ape));
+        scroll.Add(CreateButton("SPIDER", CreatureType.Spider));
+        scroll.Add(CreateButton("CENTIPEDE", CreatureType.Centipede));
+        scroll.Add(CreateButton("STARFISH", CreatureType.Starfish));
+        scroll.Add(CreateButton("TENTACLE ALIEN", CreatureType.TentacleAlien));
+        scroll.Add(CreateButton("LIZARD (Scales/Ridge)", CreatureType.Lizard));
+        scroll.Add(CreateButton("TRICERATOPS (Frill)", CreatureType.Triceratops));
+        scroll.Add(CreateButton("MAMMAL (Fur)", CreatureType.Mammal));
+        
+        panel.Add(scroll);
+
         VisualElement divider2 = new VisualElement();
         divider2.AddToClassList("section-divider");
-        divider2.style.marginTop = 20;
+        divider2.style.marginTop = 10;
         panel.Add(divider2);
         
         _statsLabel = new Label("STATS...");
         _statsLabel.style.color = new Color(0.18f, 0.82f, 0.9f);
-        _statsLabel.style.fontSize = 20;
+        _statsLabel.style.fontSize = 18;
         _statsLabel.style.marginTop = 10;
         panel.Add(_statsLabel);
         
@@ -169,8 +198,8 @@ public class Phase2Demo : MonoBehaviour
         });
         btn.text = text;
         btn.AddToClassList("action-btn");
-        btn.style.marginTop = 10;
-        btn.style.fontSize = 18;
+        btn.style.marginTop = 5;
+        btn.style.fontSize = 16;
         return btn;
     }
 
@@ -204,18 +233,21 @@ public class Phase2Demo : MonoBehaviour
         {
             case CreatureType.Biped: 
                 dna.BodyPlan = GetBipedDNA(); 
+                // Neck set to 0.7 to retain thickness while keeping the head large
+                dna.Morphogenesis.Regions.Add(new BodyRegionDNA { RegionType = BodyRegionType.Head, RelativeSize = 1.8f, GrowthRate = 1f });
+                dna.Morphogenesis.Regions.Add(new BodyRegionDNA { RegionType = BodyRegionType.Neck, RelativeSize = 0.7f, GrowthRate = 1f });
                 dna.Tissue = new TissueDNA { MuscleMass = 5f, FatMass = 0f, ArmorMass = 0f };
-                dna.Features = new SurfaceFeatureDNA { Type = SurfaceFeatureType.Spike, Density = 1f, Length = 0.5f, Thickness = 0.15f };
+                dna.Features = new SurfaceFeatureDNA { Type = SurfaceFeatureType.Scale, Density = 1f, Length = 0.5f, Thickness = 0.15f };
                 dna.Skin = new SkinDNA { PrimaryColor = new Color(0.2f, 0.6f, 0.3f, 1f), SecondaryColor = new Color(0.1f, 0.4f, 0.2f, 1f) };
                 break;
             case CreatureType.Ape: 
                 dna.BodyPlan = GetApeDNA(); 
-                dna.Tissue = new TissueDNA { MuscleMass = 8f, FatMass = 2f, ArmorMass = 0f };
+                dna.Tissue = new TissueDNA { MuscleMass = 3f, FatMass = 0f, ArmorMass = 0f };
                 dna.Skin = new SkinDNA { PrimaryColor = new Color(0.4f, 0.3f, 0.2f, 1f), SecondaryColor = new Color(0.2f, 0.15f, 0.1f, 1f) };
                 break;
             case CreatureType.Spider: 
                 dna.BodyPlan = GetSpiderDNA(); 
-                dna.Tissue = new TissueDNA { MuscleMass = 1f, FatMass = 5f, ArmorMass = 0f };
+                dna.Tissue = new TissueDNA { MuscleMass = 1f, FatMass = 2f, ArmorMass = 0f };
                 dna.Skin = new SkinDNA { PrimaryColor = new Color(0.1f, 0.1f, 0.1f, 1f), SecondaryColor = new Color(0.8f, 0.1f, 0.1f, 1f) };
                 break;
             case CreatureType.Centipede: 
@@ -236,7 +268,36 @@ public class Phase2Demo : MonoBehaviour
                 dna.Tissue = new TissueDNA { MuscleMass = 3f, FatMass = 1f, ArmorMass = 0f };
                 dna.Skin = new SkinDNA { PrimaryColor = new Color(0.3f, 0.1f, 0.7f, 1f), SecondaryColor = new Color(0.1f, 0.8f, 0.6f, 1f) };
                 break;
+            case CreatureType.Lizard:
+                dna.BodyPlan = GetLizardDNA();
+                dna.Morphogenesis.Regions.Add(new BodyRegionDNA { RegionType = BodyRegionType.Tail, RelativeSize = 0.8f, GrowthRate = 1f });
+                dna.Morphogenesis.Regions.Add(new BodyRegionDNA { RegionType = BodyRegionType.Neck, RelativeSize = 0.6f, GrowthRate = 1f });
+                dna.Features = new SurfaceFeatureDNA { Type = SurfaceFeatureType.Ridge, Density = 1f, Length = 0.6f, Thickness = 0.05f };
+                dna.Tissue = new TissueDNA { MuscleMass = 2f, FatMass = 1f, ArmorMass = 1f };
+                dna.Skin = new SkinDNA { PrimaryColor = new Color(0.1f, 0.5f, 0.2f, 1f), SecondaryColor = new Color(0.2f, 0.7f, 0.3f, 1f) };
+                break;
+            case CreatureType.Triceratops:
+                dna.BodyPlan = GetTriceratopsDNA();
+                dna.Morphogenesis.Regions.Add(new BodyRegionDNA { RegionType = BodyRegionType.Head, RelativeSize = 2.0f, GrowthRate = 1f });
+                dna.Morphogenesis.Regions.Add(new BodyRegionDNA { RegionType = BodyRegionType.Neck, RelativeSize = 0.7f, GrowthRate = 1f });
+                dna.Features = new SurfaceFeatureDNA { Type = SurfaceFeatureType.Frill, Density = 1f, Length = 0.8f, Thickness = 0.2f };
+                dna.Tissue = new TissueDNA { MuscleMass = 4f, FatMass = 1.5f, ArmorMass = 5f };
+                dna.Skin = new SkinDNA { PrimaryColor = new Color(0.5f, 0.4f, 0.3f, 1f), SecondaryColor = new Color(0.3f, 0.2f, 0.2f, 1f) };
+                break;
+            case CreatureType.Mammal:
+                dna.BodyPlan = GetMammalDNA();
+                dna.Morphogenesis.Regions.Add(new BodyRegionDNA { RegionType = BodyRegionType.Thorax, RelativeSize = 1.0f, GrowthRate = 1f });
+                dna.Features = new SurfaceFeatureDNA { Type = SurfaceFeatureType.Fur, Density = 1f, Length = 0f, Thickness = 0f };
+                dna.Tissue = new TissueDNA { MuscleMass = 2f, FatMass = 0f, ArmorMass = 0f }; 
+                dna.Skin = new SkinDNA { PrimaryColor = new Color(0.6f, 0.4f, 0.2f, 1f), SecondaryColor = new Color(0.8f, 0.6f, 0.3f, 1f) };
+                break;
         }
+
+        // Texture Injector
+        if (dna.Features.Type == SurfaceFeatureType.Fur && fluffyTexture != null) dna.Skin.PatternMask = fluffyTexture;
+        if (dna.Features.Type == SurfaceFeatureType.Scale && scalesTexture != null) dna.Skin.PatternMask = scalesTexture;
+        if (dna.Features.Type == SurfaceFeatureType.Ridge && scalesTexture != null) dna.Skin.PatternMask = scalesTexture;
+        if (dna.Features.Type == SurfaceFeatureType.Frill && scalesTexture != null) dna.Skin.PatternMask = scalesTexture;
         
         transform.position = new Vector3(0, 2f, 0);
         transform.localRotation = Quaternion.identity;
@@ -256,14 +317,10 @@ public class Phase2Demo : MonoBehaviour
     {
         return new BodyPlanDNA {
             Symmetry = SymmetryType.Bilateral,
-            SpineSegments = 3,
-            SpineSegmentLength = 1.0f,
-            TailSegments = 4,
-            TailSegmentLength = 0.8f,
-            PosturePitch = 15f,
-            SpineStiffness = 0.4f,
+            SpineSegments = 3, SpineSegmentLength = 1.0f, TailSegments = 4, TailSegmentLength = 0.8f,
+            PosturePitch = 15f, SpineStiffness = 0.4f,
             Limbs = new List<LimbDNA> {
-                new LimbDNA { Type = LimbType.Head, AttachedSegmentIndex = 0, JointCount = 2, BoneLengths = new float[] { 0.5f, 0.4f }, Pitch = -20, Yaw = 0, Roll = 0, AttachmentSpacing = 0f },
+                new LimbDNA { Type = LimbType.Head, AttachedSegmentIndex = 0, JointCount = 2, BoneLengths = new float[] { 0.7f, 0.6f, 0.5f }, Pitch = -20, Yaw = 0, Roll = 0, AttachmentSpacing = 0f },
                 new LimbDNA { Type = LimbType.Leg, AttachedSegmentIndex = 2, JointCount = 3, BoneLengths = new float[] { 1.2f, 1.2f, 0.4f }, Pitch = 90, Yaw = -20, Roll = 0, AttachmentSpacing = 1.2f },
                 new LimbDNA { Type = LimbType.Manipulator, AttachedSegmentIndex = 0, JointCount = 3, BoneLengths = new float[] { 0.4f, 0.4f, 0.2f }, Pitch = 45, Yaw = 0, Roll = 0, AttachmentSpacing = 0.8f }
             }
@@ -330,6 +387,49 @@ public class Phase2Demo : MonoBehaviour
             Limbs = new List<LimbDNA> {
                 new LimbDNA { Type = LimbType.Head, AttachedSegmentIndex = 0, JointCount = 3, BoneLengths = new float[] { 0.5f, 0.5f, 0.4f }, Pitch = -90, Yaw = 0, Roll = 0, AttachmentSpacing = 0f },
                 new LimbDNA { Type = LimbType.Tentacle, AttachedSegmentIndex = 0, JointCount = 5, BoneLengths = new float[] { 0.6f, 0.5f, 0.4f, 0.3f, 0.2f }, Pitch = 15, Yaw = 0, Roll = 0, AttachmentSpacing = 0.5f }
+            }
+        };
+    }
+
+    private BodyPlanDNA GetLizardDNA()
+    {
+        return new BodyPlanDNA {
+            Symmetry = SymmetryType.Bilateral,
+            SpineSegments = 4, SpineSegmentLength = 0.6f, TailSegments = 5, TailSegmentLength = 0.5f,
+            PosturePitch = 0f, SpineStiffness = 0.2f,
+            Limbs = new List<LimbDNA> {
+                new LimbDNA { Type = LimbType.Head, AttachedSegmentIndex = 0, JointCount = 2, BoneLengths = new float[] { 0.4f, 0.3f }, Pitch = -10, Yaw = 0, Roll = 0, AttachmentSpacing = 0f },
+                new LimbDNA { Type = LimbType.Leg, AttachedSegmentIndex = 1, JointCount = 3, BoneLengths = new float[] { 0.5f, 0.6f, 0.2f }, Pitch = 70, Yaw = -40, Roll = 0, AttachmentSpacing = 0.8f },
+                new LimbDNA { Type = LimbType.Leg, AttachedSegmentIndex = 3, JointCount = 3, BoneLengths = new float[] { 0.6f, 0.7f, 0.2f }, Pitch = 70, Yaw = -30, Roll = 0, AttachmentSpacing = 0.8f }
+            }
+        };
+    }
+
+    private BodyPlanDNA GetTriceratopsDNA()
+    {
+        return new BodyPlanDNA {
+            Symmetry = SymmetryType.Bilateral,
+            SpineSegments = 3, SpineSegmentLength = 1.0f, TailSegments = 3, TailSegmentLength = 0.7f,
+            PosturePitch = -5f, SpineStiffness = 0.8f,
+            Limbs = new List<LimbDNA> {
+                new LimbDNA { Type = LimbType.Head, AttachedSegmentIndex = 0, JointCount = 2, BoneLengths = new float[] { 0.8f, 0.6f }, Pitch = 10, Yaw = 0, Roll = 0, AttachmentSpacing = 0f },
+                new LimbDNA { Type = LimbType.Leg, AttachedSegmentIndex = 0, JointCount = 3, BoneLengths = new float[] { 0.8f, 0.8f, 0.3f }, Pitch = 90, Yaw = -10, Roll = 0, AttachmentSpacing = 1.5f },
+                new LimbDNA { Type = LimbType.Leg, AttachedSegmentIndex = 2, JointCount = 3, BoneLengths = new float[] { 1.0f, 1.0f, 0.3f }, Pitch = 90, Yaw = -10, Roll = 0, AttachmentSpacing = 1.5f },
+                new LimbDNA { Type = LimbType.Horn, AttachedSegmentIndex = 0, JointCount = 1, BoneLengths = new float[] { 0.7f }, Pitch = -60, Yaw = -30, Roll = 0, AttachmentSpacing = 0.4f }
+            }
+        };
+    }
+
+    private BodyPlanDNA GetMammalDNA()
+    {
+        return new BodyPlanDNA {
+            Symmetry = SymmetryType.Bilateral,
+            SpineSegments = 4, SpineSegmentLength = 0.8f, TailSegments = 2, TailSegmentLength = 0.5f,
+            PosturePitch = 0f, SpineStiffness = 0.5f,
+            Limbs = new List<LimbDNA> {
+                new LimbDNA { Type = LimbType.Head, AttachedSegmentIndex = 0, JointCount = 2, BoneLengths = new float[] { 0.5f, 0.4f }, Pitch = -20, Yaw = 0, Roll = 0, AttachmentSpacing = 0f },
+                new LimbDNA { Type = LimbType.Leg, AttachedSegmentIndex = 0, JointCount = 3, BoneLengths = new float[] { 0.7f, 0.7f, 0.2f }, Pitch = 90, Yaw = -10, Roll = 0, AttachmentSpacing = 0.8f },
+                new LimbDNA { Type = LimbType.Leg, AttachedSegmentIndex = 3, JointCount = 3, BoneLengths = new float[] { 0.8f, 0.8f, 0.2f }, Pitch = 90, Yaw = -10, Roll = 0, AttachmentSpacing = 0.8f }
             }
         };
     }

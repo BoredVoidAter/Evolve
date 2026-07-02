@@ -44,13 +44,13 @@ public class CreatureFleshBuilder : MonoBehaviour
             BuildChainMesh(limbRoot.name + "_Flesh", limbChain, dna, false, creatureId, rootBoneTransform);
         }
 
-        // Phase 2: Grow Membranes (Wings, Webbed feet, etc)
+        // Phase 2: Grow Membranes
         if (dna.Membranes.WebbingAmount > 0)
         {
             BuildMembranes(dna, rootBoneTransform, creatureId);
         }
 
-        // Phase 2: Grow Surface Features (Spikes, Plates, etc)
+        // Phase 2: Grow Surface Features
         if (dna.Features.Type != SurfaceFeatureType.None && dna.Features.Density > 0)
         {
             BuildSurfaceFeatures(dna, spineChain, rootBoneTransform, creatureId);
@@ -80,7 +80,6 @@ public class CreatureFleshBuilder : MonoBehaviour
             mat = new Material(toonShader);
         }
 
-        // Ensure we don't pass transparent black if the struct wasn't fully initialized
         Color c1 = dna.Skin.PrimaryColor.a == 0 ? new Color(0.8f, 0.4f, 0.3f, 1f) : dna.Skin.PrimaryColor;
         Color c2 = dna.Skin.SecondaryColor.a == 0 ? new Color(0.6f, 0.2f, 0.2f, 1f) : dna.Skin.SecondaryColor;
 
@@ -90,7 +89,11 @@ public class CreatureFleshBuilder : MonoBehaviour
 
         if (dna.Skin.PatternMask != null)
         {
-            if (mat.HasProperty("_Tex")) mat.SetTexture("_Tex", dna.Skin.PatternMask);
+            if (mat.HasProperty("_Tex")) 
+            {
+                mat.SetTexture("_Tex", dna.Skin.PatternMask);
+                mat.mainTextureScale = new Vector2(2, 4); 
+            }
             if (mat.HasProperty("_USE_TEXTURE")) mat.SetFloat("_USE_TEXTURE", 1f);
         }
         else
@@ -103,12 +106,10 @@ public class CreatureFleshBuilder : MonoBehaviour
 
     private void SetupIDAndLayer(GameObject obj, uint creatureId, Mesh mesh)
     {
-        // Add outline/selection layer & map
         obj.layer = LayerMask.NameToLayer("ID");
         IDMapObject idObj = obj.AddComponent<IDMapObject>();
         idObj.groupId = creatureId;
 
-        // Embed ID into vertex colors for shaders
         Color32 idColor32 = new Color32(
             (byte)((creatureId) & 0xFF),
             (byte)((creatureId >> 8) & 0xFF),
@@ -130,7 +131,6 @@ public class CreatureFleshBuilder : MonoBehaviour
         {
             if (t.name.StartsWith("Spine_")) spineBones.Add(t);
             else if (t.name.StartsWith("Tail_")) tailBones.Add(t);
-            
             foreach (Transform child in t) FindBones(child);
         }
         FindBones(rootBone);
@@ -141,8 +141,7 @@ public class CreatureFleshBuilder : MonoBehaviour
             return match.Success ? int.Parse(match.Value) : 0;
         }
 
-        spineBones.Sort((a, b) => 
-        {
+        spineBones.Sort((a, b) => {
             int numA = ExtractNumber(a.name);
             int numB = ExtractNumber(b.name);
             if (numA != numB) return numA.CompareTo(numB);
@@ -151,8 +150,7 @@ public class CreatureFleshBuilder : MonoBehaviour
             return 0;
         });
         
-        tailBones.Sort((a, b) => 
-        {
+        tailBones.Sort((a, b) => {
             int numA = ExtractNumber(a.name);
             int numB = ExtractNumber(b.name);
             if (numA != numB) return numA.CompareTo(numB); 
@@ -175,10 +173,7 @@ public class CreatureFleshBuilder : MonoBehaviour
         {
             foreach (Transform child in t)
             {
-                if (child.name.Contains("_J0"))
-                {
-                    limbRoots.Add(child);
-                }
+                if (child.name.Contains("_J0")) limbRoots.Add(child);
                 Traverse(child);
             }
         }
@@ -214,11 +209,14 @@ public class CreatureFleshBuilder : MonoBehaviour
         
         float tissueBulk = 1.0f + (dna.Tissue.MuscleMass * 0.15f) + (dna.Tissue.FatMass * 0.25f);
         float regionMultiplier = dna.Morphogenesis.GlobalGrowthRate > 0 ? dna.Morphogenesis.GlobalGrowthRate : 1.0f;
+        
+        BodyRegionType currentRegion = BodyRegionType.Thorax;
 
         if (isBody)
         {
             if (t.name.StartsWith("Tail_"))
             {
+                currentRegion = BodyRegionType.Tail;
                 float distFromEnd = chain.Count - 1 - index;
                 float taper = Mathf.Clamp01(distFromEnd / 4f);
                 baseRadius = Mathf.Lerp(0.05f, 0.4f, taper);
@@ -238,7 +236,23 @@ public class CreatureFleshBuilder : MonoBehaviour
 
                 float t_norm = spineCount > 1 ? (float)spineIndex / (spineCount - 1) : 0f;
                 float spineProfile = Mathf.Sin(t_norm * Mathf.PI);
-                baseRadius = 0.4f + 0.05f * spineProfile;
+
+                if (t_norm < 0.3f) 
+                {
+                    currentRegion = BodyRegionType.Neck;
+                    // Thickened base neck radius slightly so it doesn't break
+                    baseRadius = 0.25f + 0.1f * spineProfile; 
+                } 
+                else if (t_norm > 0.65f) 
+                {
+                    currentRegion = BodyRegionType.Abdomen;
+                    baseRadius = 0.35f + 0.1f * spineProfile;
+                } 
+                else 
+                {
+                    currentRegion = BodyRegionType.Thorax;
+                    baseRadius = 0.45f + 0.05f * spineProfile;
+                }
             }
         }
         else
@@ -247,21 +261,40 @@ public class CreatureFleshBuilder : MonoBehaviour
             BoneTag tag = t.GetComponent<BoneTag>();
             LimbType type = tag != null ? tag.bone.Type : LimbType.Leg;
             
+            currentRegion = BodyRegionType.Limb;
+
             if (type == LimbType.Leg) baseRadius = 0.25f;
             else if (type == LimbType.Manipulator) baseRadius = 0.15f;
             else if (type == LimbType.Horn) baseRadius = 0.12f;
             else if (type == LimbType.Tentacle) baseRadius = 0.2f;
             else if (type == LimbType.Head)
             {
-                // Smoothly taper from thick skull to thin snout
-                float profile = Mathf.Lerp(1.0f, 0.3f, t_norm);
-                profile += Mathf.Sin(t_norm * Mathf.PI) * 0.1f; // Slight organic curve
-                return 0.35f * profile * tissueBulk * regionMultiplier;
-            }
+                currentRegion = BodyRegionType.Head;
+                float profile = 1.0f;
+                // Shape it like a skull: narrow at connection, thick in middle, narrow at snout
+                if (t_norm < 0.4f) profile = Mathf.Lerp(0.3f, 1.0f, t_norm / 0.4f);
+                else profile = Mathf.Lerp(1.0f, 0.2f, (t_norm - 0.4f) / 0.6f);
+                baseRadius = 0.4f * profile; 
+            } 
             else baseRadius = 0.2f;
             
             baseRadius *= Mathf.Lerp(1.0f, 0.2f, t_norm);
         }
+
+        if (dna.Morphogenesis.Regions != null)
+        {
+            foreach (var region in dna.Morphogenesis.Regions)
+            {
+                if (region.RegionType == currentRegion)
+                {
+                    float regSize = region.RelativeSize > 0 ? region.RelativeSize : 1f;
+                    float regGrowth = region.GrowthRate > 0 ? region.GrowthRate : 1f;
+                    regionMultiplier *= (regSize * regGrowth);
+                    break;
+                }
+            }
+        }
+
         return baseRadius * tissueBulk * regionMultiplier;
     }
 
@@ -340,19 +373,34 @@ public class CreatureFleshBuilder : MonoBehaviour
             Vector3 socketRight = socketRot * Vector3.right;
             socketUp = socketRot * Vector3.up;
             
-            float embedDepth = isHead ? distToSpine * 0.5f : Mathf.Min(r0 * 2.5f, distToSpine * 0.9f);
-            float socketRadius = isHead ? r0 * 1.1f : Mathf.Min(r0 * 1.6f, r0 + distToSpine * 0.5f);
+            float embedDepth = 0f;
+            float socketRadius = r0;
+            
+            // FIXED HEAD SEAM: Creates a standard spherical dome socket embedding cleanly into the neck
+            if (isHead)
+            {
+                socketRadius = r0 * 1.1f; 
+                embedDepth = r0 * 1.0f;
+            }
+            else
+            {
+                socketRadius = Mathf.Min(r0 * 1.6f, r0 + distToSpine * 0.5f);
+                embedDepth = Mathf.Min(r0 * 2.5f, distToSpine * 0.9f);
+            }
 
-            // Ring 0: Socket embedded in the parent bone
             rings.Add(new RingDef {
                 position = chain[0].position - socketNormal * embedDepth,
                 right = socketRight, up = socketUp, radius = socketRadius,
                 weight = new BoneWeight { boneIndex0 = 0, weight0 = 1f }
             });
             
-            // Ring 1: First limb ring. If it's attached exactly at the joint center (dist < 0.001),
-            // offset it slightly and strongly weight it to the child bone to prevent neck pinching
-            float pivotOffset = (chain[0].position - chain[0].parent.position).magnitude < 0.001f ? r0 * 0.5f : 0f;
+            // Calculate direction and clamp pivot offsets early to prevent overlapping/folding
+            Vector3 thighDir = (chain[1].position - chain[0].position);
+            if (thighDir.sqrMagnitude < 0.0001f) thighDir = chain[0].forward * 0.1f;
+            float thighLen = thighDir.magnitude;
+            Vector3 thighDirNorm = thighDir / thighLen;
+
+            float pivotOffset = (chain[0].position - chain[0].parent.position).magnitude < 0.001f ? Mathf.Min(r0 * 0.5f, thighLen * 0.15f) : 0f;
 
             rings.Add(new RingDef {
                 position = chain[0].position + socketNormal * pivotOffset,
@@ -362,27 +410,24 @@ public class CreatureFleshBuilder : MonoBehaviour
                          : new BoneWeight { boneIndex0 = 0, weight0 = 0.5f, boneIndex1 = 1, weight1 = 0.5f }
             });
             
-            Vector3 thighDir = (chain[1].position - chain[0].position);
-            if (thighDir.sqrMagnitude < 0.0001f) thighDir = chain[0].forward * 0.1f;
-            
             Quaternion transRot = Quaternion.Slerp(socketRot, Quaternion.LookRotation(chain[0].forward, chain[0].up), 0.5f);
             
-            // Ring 2: Thigh (shifted slightly outward)
+            // Ensure the transition ring is strictly further along the bone than the pivot ring
+            float transDist = Mathf.Max(thighLen * 0.25f, pivotOffset + 0.05f);
+
             rings.Add(new RingDef {
-                position = chain[0].position + thighDir * 0.25f,
+                position = chain[0].position + thighDirNorm * transDist,
                 right = transRot * Vector3.right, up = transRot * Vector3.up,
                 radius = Mathf.Lerp(r0, GetRadius(1, chain, false, dna), 0.25f),
                 weight = new BoneWeight { boneIndex0 = 1, weight0 = 1f }
             });
             
-            // Intermediate Limb Joints (with topological smoothing to prevent glitching)
             for (int i = 1; i < chain.Count; i++)
             {
                 float r = GetRadius(i, chain, false, dna);
                 
-                if (i < chain.Count - 1) // Middle Joints (Elbows, Knees, Jaws)
+                if (i < chain.Count - 1)
                 {
-                    // Calculate directions and distances to safely offset blend rings
                     Vector3 dirFromPrev = (chain[i].position - chain[i-1].position).normalized;
                     if (dirFromPrev.sqrMagnitude < 0.001f) dirFromPrev = chain[i].parent.forward;
                     
@@ -395,7 +440,6 @@ public class CreatureFleshBuilder : MonoBehaviour
                     float blendOffsetPrev = Mathf.Min(r * 0.6f, prevDist * 0.25f);
                     float blendOffsetNext = Mathf.Min(r * 0.6f, nextDist * 0.25f);
                     
-                    // Ring Before Joint: 100% Previous Bone
                     rings.Add(new RingDef {
                         position = chain[i].position - dirFromPrev * blendOffsetPrev,
                         right = chain[i].right, up = chain[i].up,
@@ -403,7 +447,6 @@ public class CreatureFleshBuilder : MonoBehaviour
                         weight = new BoneWeight { boneIndex0 = i, weight0 = 1f }
                     });
                     
-                    // Ring AT Joint: Blended 50/50 
                     rings.Add(new RingDef {
                         position = chain[i].position,
                         right = chain[i].right, up = chain[i].up,
@@ -411,7 +454,6 @@ public class CreatureFleshBuilder : MonoBehaviour
                         weight = new BoneWeight { boneIndex0 = i, weight0 = 0.5f, boneIndex1 = i + 1, weight1 = 0.5f }
                     });
                     
-                    // Ring After Joint: 100% Next Bone
                     rings.Add(new RingDef {
                         position = chain[i].position + dirToNext * blendOffsetNext,
                         right = chain[i].right, up = chain[i].up,
@@ -419,7 +461,7 @@ public class CreatureFleshBuilder : MonoBehaviour
                         weight = new BoneWeight { boneIndex0 = i + 1, weight0 = 1f }
                     });
                 }
-                else // Tip of the limb
+                else
                 {
                     rings.Add(new RingDef {
                         position = chain[i].position,
@@ -582,15 +624,12 @@ public class CreatureFleshBuilder : MonoBehaviour
             int row1 = i * 3;
             int row2 = (i + 1) * 3;
             
-            // Left quad
             tris.Add(row1); tris.Add(row2); tris.Add(row1 + 1);
             tris.Add(row1 + 1); tris.Add(row2); tris.Add(row2 + 1);
             
-            // Right quad
             tris.Add(row1 + 1); tris.Add(row2 + 1); tris.Add(row1 + 2);
             tris.Add(row1 + 2); tris.Add(row2 + 1); tris.Add(row2 + 2);
             
-            // Double-sided (flip winding)
             tris.Add(row1); tris.Add(row1 + 1); tris.Add(row2);
             tris.Add(row1 + 1); tris.Add(row2 + 1); tris.Add(row2);
             tris.Add(row1 + 1); tris.Add(row1 + 2); tris.Add(row2 + 1);
@@ -619,14 +658,18 @@ public class CreatureFleshBuilder : MonoBehaviour
         SkinnedMeshRenderer smr = featureObj.AddComponent<SkinnedMeshRenderer>();
         
         Material featMat = CreateFleshMaterial(dna);
-        if (featMat.HasProperty("_Col1")) featMat.SetColor("_Col1", new Color(0.2f, 0.2f, 0.2f, 1f));
-        if (featMat.HasProperty("_Col2")) featMat.SetColor("_Col2", new Color(0.1f, 0.1f, 0.1f, 1f));
-        if (featMat.HasProperty("_Color")) featMat.color = new Color(0.2f, 0.2f, 0.2f, 1f);
-        if (featMat.HasProperty("_USE_TEXTURE")) featMat.SetFloat("_USE_TEXTURE", 0f);
+        if (dna.Features.Type == SurfaceFeatureType.Spike || dna.Features.Type == SurfaceFeatureType.Plate)
+        {
+            if (featMat.HasProperty("_Col1")) featMat.SetColor("_Col1", new Color(0.2f, 0.2f, 0.2f, 1f));
+            if (featMat.HasProperty("_Col2")) featMat.SetColor("_Col2", new Color(0.1f, 0.1f, 0.1f, 1f));
+            if (featMat.HasProperty("_Color")) featMat.color = new Color(0.2f, 0.2f, 0.2f, 1f);
+            if (featMat.HasProperty("_USE_TEXTURE")) featMat.SetFloat("_USE_TEXTURE", 0f);
+        }
         smr.material = featMat;
 
         Mesh mesh = new Mesh { name = "FeaturesMesh" };
         List<Vector3> verts = new List<Vector3>();
+        List<Vector2> uvs = new List<Vector2>();
         List<BoneWeight> weights = new List<BoneWeight>();
         List<int> tris = new List<int>();
         List<Matrix4x4> bindPoses = new List<Matrix4x4>();
@@ -642,7 +685,7 @@ public class CreatureFleshBuilder : MonoBehaviour
         {
             Transform bone = spineChain[i];
             
-            // Reconstruct the exact Bishop frame normal used by the body flesh
+            // Note: in our spine logic, 'forward' points toward the tail!
             Vector3 forward = Vector3.zero;
             if (i < spineChain.Count - 1) forward = spineChain[i + 1].position - spineChain[i].position;
             else if (i > 0) forward = spineChain[i].position - spineChain[i - 1].position;
@@ -654,12 +697,11 @@ public class CreatureFleshBuilder : MonoBehaviour
             if (up.sqrMagnitude < 0.001f) up = i == 0 ? Vector3.up : lastUp;
             lastUp = up;
 
-            if (Random.value > dna.Features.Density) continue;
+            if (Random.value > dna.Features.Density && dna.Features.Type != SurfaceFeatureType.Ridge && dna.Features.Type != SurfaceFeatureType.Frill) continue;
 
             int bIdx = i;
             float radius = GetRadius(i, spineChain, true, dna);
             
-            // Embed the feature by 15% so it doesn't float when the mesh bends
             Vector3 baseCenter = bone.position + up * (radius * 0.85f);
             Vector3 right = Vector3.Cross(up, forward).normalized;
 
@@ -670,11 +712,11 @@ public class CreatureFleshBuilder : MonoBehaviour
                 Vector3 rgtOffset = right * featThick;
 
                 int vStart = verts.Count;
-                verts.Add(featureObj.transform.InverseTransformPoint(tip)); // 0
-                verts.Add(featureObj.transform.InverseTransformPoint(baseCenter + fwdOffset)); // 1
-                verts.Add(featureObj.transform.InverseTransformPoint(baseCenter + rgtOffset)); // 2
-                verts.Add(featureObj.transform.InverseTransformPoint(baseCenter - fwdOffset)); // 3
-                verts.Add(featureObj.transform.InverseTransformPoint(baseCenter - rgtOffset)); // 4
+                verts.Add(featureObj.transform.InverseTransformPoint(tip)); uvs.Add(new Vector2(0.5f, 1f));
+                verts.Add(featureObj.transform.InverseTransformPoint(baseCenter + fwdOffset)); uvs.Add(new Vector2(0.5f, 0f));
+                verts.Add(featureObj.transform.InverseTransformPoint(baseCenter + rgtOffset)); uvs.Add(new Vector2(1f, 0f));
+                verts.Add(featureObj.transform.InverseTransformPoint(baseCenter - fwdOffset)); uvs.Add(new Vector2(0.5f, 0f));
+                verts.Add(featureObj.transform.InverseTransformPoint(baseCenter - rgtOffset)); uvs.Add(new Vector2(0f, 0f));
 
                 for (int v = 0; v < 5; v++) weights.Add(new BoneWeight { boneIndex0 = bIdx, weight0 = 1f });
 
@@ -687,7 +729,6 @@ public class CreatureFleshBuilder : MonoBehaviour
             }
             else if (dna.Features.Type == SurfaceFeatureType.Plate)
             {
-                // A 3D Diamond shaped plate (like a Stegosaurus)
                 Vector3 baseR = baseCenter + right * featThick;
                 Vector3 baseL = baseCenter - right * featThick;
                 Vector3 frontTip = baseCenter + forward * (featLength * 0.6f) + up * (featLength * 0.2f);
@@ -695,22 +736,116 @@ public class CreatureFleshBuilder : MonoBehaviour
                 Vector3 topTip = baseCenter + up * featLength;
 
                 int vStart = verts.Count;
-                verts.Add(featureObj.transform.InverseTransformPoint(baseR)); // 0
-                verts.Add(featureObj.transform.InverseTransformPoint(baseL)); // 1
-                verts.Add(featureObj.transform.InverseTransformPoint(frontTip)); // 2
-                verts.Add(featureObj.transform.InverseTransformPoint(backTip)); // 3
-                verts.Add(featureObj.transform.InverseTransformPoint(topTip)); // 4
+                verts.Add(featureObj.transform.InverseTransformPoint(baseR)); uvs.Add(new Vector2(1f, 0f));
+                verts.Add(featureObj.transform.InverseTransformPoint(baseL)); uvs.Add(new Vector2(0f, 0f));
+                verts.Add(featureObj.transform.InverseTransformPoint(frontTip)); uvs.Add(new Vector2(0.5f, 1f));
+                verts.Add(featureObj.transform.InverseTransformPoint(backTip)); uvs.Add(new Vector2(0.5f, 1f));
+                verts.Add(featureObj.transform.InverseTransformPoint(topTip)); uvs.Add(new Vector2(0.5f, 1f));
 
                 for (int v = 0; v < 5; v++) weights.Add(new BoneWeight { boneIndex0 = bIdx, weight0 = 1f });
 
-                // Right Side
                 tris.AddRange(new int[] { vStart, vStart+2, vStart+4, vStart, vStart+4, vStart+3 });
-                // Left Side (Reverse winding)
                 tris.AddRange(new int[] { vStart+1, vStart+4, vStart+2, vStart+1, vStart+3, vStart+4 });
+            }
+            else if (dna.Features.Type == SurfaceFeatureType.Ridge)
+            {
+                Vector3 topTip = baseCenter + up * featLength;
+                Vector3 fwdOffset = forward * (featLength * 0.6f); 
+                
+                int vStart = verts.Count;
+                verts.Add(featureObj.transform.InverseTransformPoint(baseCenter + right * featThick)); uvs.Add(new Vector2(1f, 0f));
+                verts.Add(featureObj.transform.InverseTransformPoint(baseCenter - right * featThick)); uvs.Add(new Vector2(0f, 0f));
+                verts.Add(featureObj.transform.InverseTransformPoint(topTip + fwdOffset)); uvs.Add(new Vector2(1f, 1f));
+                verts.Add(featureObj.transform.InverseTransformPoint(topTip - fwdOffset)); uvs.Add(new Vector2(0f, 1f));
+
+                for (int v = 0; v < 4; v++) weights.Add(new BoneWeight { boneIndex0 = bIdx, weight0 = 1f });
+
+                tris.AddRange(new int[] {
+                    vStart, vStart+2, vStart+3,
+                    vStart+1, vStart+3, vStart+2,
+                    vStart, vStart+3, vStart+1,
+                    vStart, vStart+1, vStart+2
+                });
+            }
+            else if (dna.Features.Type == SurfaceFeatureType.Frill && i == 0) 
+            {
+                // BRAND NEW FRILL GENERATOR:
+                // Generates a proper, segmented 3D fan shape that extends back over the neck.
+                int segments = 8;
+                float angleSpread = 100f; // -100 to 100 degree span (200 degrees over the back of head)
+                
+                Vector3 fwdThick = forward * featThick * 0.5f;
+                int vStart = verts.Count;
+                
+                // 1. Back Base Loop (attached to skin)
+                for(int s = 0; s <= segments; s++) {
+                    float u = (float)s / segments;
+                    float angle = Mathf.Lerp(-angleSpread, angleSpread, u);
+                    Vector3 dir = Quaternion.AngleAxis(angle, forward) * up;
+                    verts.Add(featureObj.transform.InverseTransformPoint(bone.position + dir * radius - fwdThick));
+                    uvs.Add(new Vector2(u, 0f));
+                    weights.Add(new BoneWeight { boneIndex0 = bIdx, weight0 = 1f });
+                }
+                
+                // 2. Back Edge Loop (the outer rim, tilted backward over the neck)
+                for(int s = 0; s <= segments; s++) {
+                    float u = (float)s / segments;
+                    float angle = Mathf.Lerp(-angleSpread, angleSpread, u);
+                    // (up + forward) points up and backwards over the spine
+                    Vector3 dir = Quaternion.AngleAxis(angle, forward) * (up + forward * 0.4f).normalized;
+                    verts.Add(featureObj.transform.InverseTransformPoint(bone.position + dir * (radius + featLength * 2f) - fwdThick));
+                    uvs.Add(new Vector2(u, 1f));
+                    weights.Add(new BoneWeight { boneIndex0 = bIdx, weight0 = 1f });
+                }
+                
+                // 3. Front Base Loop (attached to skin)
+                for(int s = 0; s <= segments; s++) {
+                    float u = (float)s / segments;
+                    float angle = Mathf.Lerp(-angleSpread, angleSpread, u);
+                    Vector3 dir = Quaternion.AngleAxis(angle, forward) * up;
+                    verts.Add(featureObj.transform.InverseTransformPoint(bone.position + dir * radius + fwdThick));
+                    uvs.Add(new Vector2(u, 0f));
+                    weights.Add(new BoneWeight { boneIndex0 = bIdx, weight0 = 1f });
+                }
+                
+                // 4. Front Edge Loop (outer rim)
+                for(int s = 0; s <= segments; s++) {
+                    float u = (float)s / segments;
+                    float angle = Mathf.Lerp(-angleSpread, angleSpread, u);
+                    Vector3 dir = Quaternion.AngleAxis(angle, forward) * (up + forward * 0.4f).normalized;
+                    verts.Add(featureObj.transform.InverseTransformPoint(bone.position + dir * (radius + featLength * 2f) + fwdThick));
+                    uvs.Add(new Vector2(u, 1f));
+                    weights.Add(new BoneWeight { boneIndex0 = bIdx, weight0 = 1f });
+                }
+
+                int bBack = vStart;
+                int eBack = vStart + segments + 1;
+                int bFront = vStart + (segments + 1) * 2;
+                int eFront = vStart + (segments + 1) * 3;
+
+                for(int s = 0; s < segments; s++) 
+                {
+                    // Back face
+                    tris.AddRange(new int[] { 
+                        bBack+s, eBack+s+1, eBack+s, 
+                        bBack+s, bBack+s+1, eBack+s+1 
+                    });
+                    // Front face (reversed winding)
+                    tris.AddRange(new int[] { 
+                        bFront+s, eFront+s, eFront+s+1, 
+                        bFront+s, eFront+s+1, bFront+s+1 
+                    });
+                    // Outer rim (connecting front and back faces)
+                    tris.AddRange(new int[] {
+                        eBack+s, eBack+s+1, eFront+s+1,
+                        eBack+s, eFront+s+1, eFront+s
+                    });
+                }
             }
         }
 
         mesh.SetVertices(verts);
+        mesh.SetUVs(0, uvs);
         mesh.boneWeights = weights.ToArray();
         mesh.SetTriangles(tris, 0);
         mesh.bindposes = bindPoses.ToArray();
