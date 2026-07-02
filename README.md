@@ -13,4 +13,4 @@ World Generation including:
 
 
 ## Demo
-![https://boredvoidater.itch.io/evolve](https://img.shields.io/badge/Itch-%23FF0B34.svg?style=for-the-badge&logo=Itch.io&logoColor=white)
+[![Itch.io](https://img.shields.io/badge/Itch-%23FF0B34.svg?style=for-the-badge&logo=Itch.io&logoColor=white)](https://boredvoideater.itch.io/evolve)
